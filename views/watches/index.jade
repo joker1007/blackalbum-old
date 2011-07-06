@@ -1,0 +1,19 @@
+table#watch_list
+  thead
+    tr
+      th ディレクトリ
+      th
+      th
+
+  tbody
+    != partial('watch', {collection: watches})
+
+br
+a.new_watch(href='/watch') 監視ディレクトリを追加
+
+#new_watch_form
+  form(id='new_watch', action='/watch', method='POST')
+    fieldset
+      p
+        label(for='watch[dir]') ディレクトリ:
+        input(type='text', name='watch[dir]', size='60')

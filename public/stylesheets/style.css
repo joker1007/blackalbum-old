@@ -1,0 +1,22 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;}
+
+a {
+  color: #00B7FF;}
+
+table#watch_list {
+  margin-top: 0.2em;
+  margin-bottom: 1em;
+  width: 640px;
+  border-collapse: collapse;
+  border: solid 1px #333;}
+table#watch_list th {
+  background: #4777E9;
+  color: white;
+  text-align: left;
+  padding: 6px;
+  border-bottom: solid 1px #333;}
+table#watch_list td {
+  padding: 10px 8px 8px 4px;
+  border-bottom: solid 1px #333;}

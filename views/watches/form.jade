@@ -1,0 +1,6 @@
+#edit_watch_form
+  form(action="/watch/#{watch._id}", method='POST', id="edit_watch-#{watch._id}")
+    input(type='hidden', name='_method', value='put')
+    p
+      label(for='watch[dir]') ディレクトリ:
+      input(type='text', name='watch[dir]', size='60', value=(watch.dir ? watch.dir : ""))
