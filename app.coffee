@@ -5,13 +5,21 @@
 express = require 'express'
 mongoose = require 'mongoose'
 Schema = mongoose.Schema
-ObjectId = mongoose.ObjectId
+fs = require 'fs'
+path = require 'path'
+crypto = require 'crypto'
+{exec} = require 'child_process'
 
-Watch = new Schema {
-  dir: {type: String, required: true}
-}
+{FileSearcher} = require './search_file'
+{MovieFactory} = require './movie_factory'
+thumbnailer = require './ffmpegthumbnailer'
+ffmpeg_info = require './ffmpeg_info'
+
+{Watch} = require './watch'
+{Movie} = require './movie'
 
 watchModel = mongoose.model('Watch', Watch)
+movieModel = mongoose.model('Movie', Movie)
 
 app = module.exports = express.createServer()
 
@@ -42,12 +50,25 @@ app.dynamicHelpers {
     return req
 }
 
+db_update = (target) ->
+  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
+  fsearch.search target, 0, (err, f) ->
+    movie_factory = new MovieFactory f
+    movie_factory.get_movie 6, (movie) ->
+      movie.save (err) ->
+        if !err
+          console.log "Save: #{movie.path}"
+
 ## Routes
 
 app.get '/', (req, res) ->
   res.render 'index', {
     title: 'Express'
   }
+
+app.get '/updatedb', (req, res) ->
+  db_update('/Volumes/bacchus_data/freenas_files/お笑い')
+  res.send "Update Start"
 
 app.get '/watch', (req, res) ->
   watch = new watchModel
