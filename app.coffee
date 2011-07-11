@@ -21,6 +21,17 @@ ffmpeg_info = require './ffmpeg_info'
 watchModel = mongoose.model('Watch', Watch)
 movieModel = mongoose.model('Movie', Movie)
 
+
+## Socket.IO
+io = require('socket.io').listen(8765)
+io.sockets.on 'connection', (socket) ->
+  console.log "Get Connection from Browser"
+
+  socket.on 'disconnect', ->
+    console.log "Disconnect"
+
+## Express
+
 app = module.exports = express.createServer()
 
 app.configure ->
@@ -48,6 +59,8 @@ app.configure 'production', ->
 app.dynamicHelpers {
   req: (req, res) ->
     return req
+  hostname: ->
+    "localhost"
 }
 
 db_update = (target) ->
@@ -58,6 +71,9 @@ db_update = (target) ->
       movie.save (err) ->
         if !err
           console.log "Save: #{movie.path}"
+          io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
+        else
+          console.log err.message
 
 ## Routes
 
@@ -67,8 +83,11 @@ app.get '/', (req, res) ->
   }
 
 app.get '/updatedb', (req, res) ->
-  db_update('/Volumes/bacchus_data/freenas_files/お笑い')
-  res.send "Update Start"
+  watchModel.find {}, (err, watches) ->
+    if !err
+      for w in watches
+        db_update(w.dir)
+      res.send "Update Start"
 
 app.get '/watch', (req, res) ->
   watch = new watchModel
@@ -116,3 +135,5 @@ app.get '/watches', (req, res) ->
 
 app.listen 4000
 console.log "Express server listening on port %d in %s mode", app.address().port, app.settings.env
+
+

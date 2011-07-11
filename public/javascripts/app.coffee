@@ -1,4 +1,11 @@
 $().ready ->
+  socket = io.connect "http://localhost:8765/"
+  socket.on 'save_movie', (data) ->
+    $.jGrowl "Saved: #{data.name}"
+  socket.on 'duplicate_movie', (data) ->
+    $.jGrowl "Already Exist: #{data.name}"
+
+
   $("a.watch_destroy").live 'click', (e) ->
     e.preventDefault()
     confirm = window.confirm "本当に削除しますか？"
@@ -75,3 +82,12 @@ $().ready ->
     $('#new_watch_form').dialog 'open'
     $('form#new_watch').bind 'submit', ->
       return false
+
+  $('a.updatedb').click (e) ->
+    e.preventDefault()
+    $.ajax {
+      type: 'GET'
+      url: $(this).attr 'href'
+      success: (msg) ->
+        $.jGrowl msg
+    }

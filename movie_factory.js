@@ -68,7 +68,7 @@ MovieFactory = (function() {
     md5sum = crypto.createHash('md5');
     rs = fs.createReadStream(this.filename, {
       start: 0,
-      end: 300 * 1024
+      end: 100 * 1024
     });
     rs.on('data', function(d) {
       return md5sum.update(d);
@@ -81,17 +81,22 @@ MovieFactory = (function() {
     }, this));
   };
   MovieFactory.prototype.get_info = function() {
-    return ffmpeg_info.get_info(this.filename, __bind(function(err, info) {
-      var _ref, _ref2, _ref3, _ref4;
-      this.movie.container = (_ref = info.container) != null ? _ref : "Unknown";
-      this.movie.video_codec = (_ref2 = info.video_codec) != null ? _ref2 : "Unknown";
-      this.movie.audio_codec = (_ref3 = info.audio_codec) != null ? _ref3 : "Unknown";
-      this.movie.length = (_ref4 = info.length) != null ? _ref4 : 0;
-      this.movie.video_bitrate = info.video_bitrate;
-      this.movie.audio_bitrate = info.audio_bitrate;
-      this.movie.audio_sample = info.audio_sample;
+    try {
+      return ffmpeg_info.get_info(this.filename, __bind(function(err, info) {
+        var _ref, _ref2, _ref3, _ref4;
+        this.movie.container = (_ref = info.container) != null ? _ref : "Unknown";
+        this.movie.video_codec = (_ref2 = info.video_codec) != null ? _ref2 : "Unknown";
+        this.movie.audio_codec = (_ref3 = info.audio_codec) != null ? _ref3 : "Unknown";
+        this.movie.length = (_ref4 = info.length) != null ? _ref4 : 0;
+        this.movie.video_bitrate = info.video_bitrate;
+        this.movie.audio_bitrate = info.audio_bitrate;
+        this.movie.audio_sample = info.audio_sample;
+        return this.emit('info_finish');
+      }, this));
+    } catch (error) {
+      console.log("[Failed] Get Info: " + this.filename);
       return this.emit('info_finish');
-    }, this));
+    }
   };
   MovieFactory.prototype.create_thumbnail = function(count) {
     return fs.stat("thumbs/" + this.movie.title + "-" + this.movie.md5_hash + ".jpg", __bind(function(err) {
@@ -112,8 +117,6 @@ MovieFactory = (function() {
             fs.unlink("thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err4) {
               if (err4) {
                 return console.log(err4);
-              } else {
-                return console.log("[Success] Delete Temp File: " + this.filename);
               }
             }, this));
           }
@@ -145,8 +148,6 @@ MovieFactory = (function() {
           fs.unlink("thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err4) {
             if (err4) {
               return console.log(err4);
-            } else {
-              return console.log("[Success] Delete Temp File: " + this.filename);
             }
           }, this));
         }

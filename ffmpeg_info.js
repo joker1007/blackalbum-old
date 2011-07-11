@@ -13,13 +13,13 @@ FFmpegInfo = (function() {
           container = input_match[1];
         }
         video_match = stdout.match(/Stream #.*: Video: ([a-zA-Z0-9]+?),.*, (\d+x\d+)/);
-        video_bitrate_match = stdout.match(/Stream #.*: Video:.* (\d+) kb\/s/);
         if (video_match) {
           video_codec = video_match[1];
         }
         if (video_match) {
           resolution = video_match[2];
         }
+        video_bitrate_match = stdout.match(/Stream #.*: Video:.* (\d+) kb\/s/);
         if (video_bitrate_match) {
           video_bitrate = parseInt(video_bitrate_match[1]);
         }
@@ -34,10 +34,18 @@ FFmpegInfo = (function() {
           audio_bitrate = parseInt(audio_match[3]);
         }
         length_match = stdout.match(/Duration: (\d\d):(\d\d):(\d\d)/);
-        hour = parseInt(length_match[1], 10) * 3600;
-        minute = parseInt(length_match[2], 10) * 60;
-        second = parseInt(length_match[3], 10);
-        length = hour + minute + second;
+        if (length_match) {
+          hour = parseInt(length_match[1], 10) * 3600;
+        }
+        if (length_match) {
+          minute = parseInt(length_match[2], 10) * 60;
+        }
+        if (length_match) {
+          second = parseInt(length_match[3], 10);
+        }
+        if (hour && minute && second) {
+          length = hour + minute + second;
+        }
         info = {
           container: container,
           video_codec: video_codec,
@@ -51,7 +59,8 @@ FFmpegInfo = (function() {
         return callback(err, info);
       });
     } catch (error) {
-      console.log(filename);
+      console.log("" + FFMPEG + " -i \"" + filename + "\" 2>&1");
+      console.log(error);
       throw error;
     }
   };

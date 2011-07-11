@@ -23,14 +23,15 @@ class FFmpegInfo
         audio_bitrate = parseInt(audio_match[3]) if audio_match
 
         length_match = stdout.match /Duration: (\d\d):(\d\d):(\d\d)/
-        hour = parseInt(length_match[1], 10) * 3600
-        minute = parseInt(length_match[2], 10) * 60
-        second = parseInt(length_match[3], 10)
-        length =  hour + minute + second
+        hour = parseInt(length_match[1], 10) * 3600 if length_match
+        minute = parseInt(length_match[2], 10) * 60 if length_match
+        second = parseInt(length_match[3], 10) if length_match
+        length =  hour + minute + second if hour && minute && second
         info = {container:container, video_codec: video_codec, resolution: resolution, video_bitrate: video_bitrate, audio_codec: audio_codec, audio_sample: audio_sample, audio_bitrate: audio_bitrate, length: length}
         callback(err, info)
     catch error
-      console.log filename
+      console.log "#{FFMPEG} -i \"#{filename}\" 2>&1"
+      console.log error
       throw error
 
 ffmpeg_info = new FFmpegInfo

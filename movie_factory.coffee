@@ -53,7 +53,7 @@ class MovieFactory extends events.EventEmitter
 
   get_md5_hash: ->
     md5sum = crypto.createHash 'md5'
-    rs = fs.createReadStream @filename, {start: 0, end: 300 * 1024}
+    rs = fs.createReadStream @filename, {start: 0, end: 100 * 1024}
     rs.on 'data', (d) ->
       md5sum.update d
 
@@ -63,14 +63,18 @@ class MovieFactory extends events.EventEmitter
       this.emit 'md5_finish'
 
   get_info: ->
-    ffmpeg_info.get_info @filename, (err, info) =>
-      @movie.container = info.container ? "Unknown"
-      @movie.video_codec = info.video_codec ? "Unknown"
-      @movie.audio_codec = info.audio_codec ? "Unknown"
-      @movie.length = info.length ? 0
-      @movie.video_bitrate = info.video_bitrate
-      @movie.audio_bitrate = info.audio_bitrate
-      @movie.audio_sample = info.audio_sample
+    try
+      ffmpeg_info.get_info @filename, (err, info) =>
+        @movie.container = info.container ? "Unknown"
+        @movie.video_codec = info.video_codec ? "Unknown"
+        @movie.audio_codec = info.audio_codec ? "Unknown"
+        @movie.length = info.length ? 0
+        @movie.video_bitrate = info.video_bitrate
+        @movie.audio_bitrate = info.audio_bitrate
+        @movie.audio_sample = info.audio_sample
+        this.emit 'info_finish'
+    catch error
+      console.log "[Failed] Get Info: #{@filename}"
       this.emit 'info_finish'
 
   create_thumbnail: (count)->
