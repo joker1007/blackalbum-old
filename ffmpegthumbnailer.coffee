@@ -13,10 +13,10 @@ class FFmpegThumbnailer extends events.EventEmitter
       args = {input: input, output: output, size: size, offset: offset}
       throw new Error "Output Format Error" unless output.match(/\.(png|jpe?g)$/)
 
-      exec "#{FFMPEGTHUMBNAILER} -q 10 -s #{size} -t #{offset} -i \"#{input}\" -o \"#{output}\"", (err, stdout, stderr) ->
+      exec "#{FFMPEGTHUMBNAILER} -q 10 -s #{size} -t #{offset} -i \"#{input}\" -o \"#{output}\"", {maxBuffer: 1000*1024}, (err, stdout, stderr) ->
         callback(err, args, stdout, stderr)
     catch error
-      console.log input
+      console.log "Create Thumbnail Error: #{input}"
       callback(error, args)
 
   multi_create: (count, input, output, options..., callback) ->
@@ -27,7 +27,8 @@ class FFmpegThumbnailer extends events.EventEmitter
     for i in [1..count]
       seq_output = output.replace /(.*)\.(png|jpe?g)$/, "$1-#{i}.$2"
       this.create input, seq_output, size, "#{i * offset_base}%", (err, args2, stdout, stderr) ->
-        throw err if err
+        if err
+          console.log "Multi Create Thumbnail Error: #{input}"
         finish_count += 1
         if finish_count == count
           callback(err, args, stdout, stderr)

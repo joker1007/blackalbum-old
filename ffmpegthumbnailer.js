@@ -28,11 +28,13 @@ FFmpegThumbnailer = (function() {
       if (!output.match(/\.(png|jpe?g)$/)) {
         throw new Error("Output Format Error");
       }
-      return exec("" + FFMPEGTHUMBNAILER + " -q 10 -s " + size + " -t " + offset + " -i \"" + input + "\" -o \"" + output + "\"", function(err, stdout, stderr) {
+      return exec("" + FFMPEGTHUMBNAILER + " -q 10 -s " + size + " -t " + offset + " -i \"" + input + "\" -o \"" + output + "\"", {
+        maxBuffer: 1000 * 1024
+      }, function(err, stdout, stderr) {
         return callback(err, args, stdout, stderr);
       });
     } catch (error) {
-      console.log(input);
+      console.log("Create Thumbnail Error: " + input);
       return callback(error, args);
     }
   };
@@ -54,7 +56,7 @@ FFmpegThumbnailer = (function() {
       seq_output = output.replace(/(.*)\.(png|jpe?g)$/, "$1-" + i + ".$2");
       _results.push(this.create(input, seq_output, size, "" + (i * offset_base) + "%", function(err, args2, stdout, stderr) {
         if (err) {
-          throw err;
+          console.log("Multi Create Thumbnail Error: " + input);
         }
         finish_count += 1;
         if (finish_count === count) {

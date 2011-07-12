@@ -8,7 +8,9 @@ Schema = mongoose.Schema
 fs = require 'fs'
 path = require 'path'
 crypto = require 'crypto'
+events = require 'events'
 {exec} = require 'child_process'
+{spawn} = require 'child_process'
 
 {FileSearcher} = require './search_file'
 {MovieFactory} = require './movie_factory'
@@ -20,6 +22,25 @@ ffmpeg_info = require './ffmpeg_info'
 
 watchModel = mongoose.model('Watch', Watch)
 movieModel = mongoose.model('Movie', Movie)
+movieModel.prototype.length_str = ->
+  if this.length
+    hour = parseInt(this.length / 3600)
+    hour = if hour < 10 then "0#{hour}" else "#{hour}"
+    min = parseInt((this.length % 3600) / 60)
+    min = if min < 10 then "0#{min}" else "#{min}"
+    sec = this.length % 60
+    sec = if sec < 10 then "0#{sec}" else "#{sec}"
+    return "#{hour}:#{min}:#{sec}"
+  else
+    return "00:00:00"
+
+movieModel.prototype.play = (player, args) ->
+  pl = spawn player, args
+  pl.on 'exit', (code) ->
+    msg = "Player process exited with code #{code}"
+    console.log msg
+    io.sockets.emit 'player_exit', msg
+
 
 
 ## Socket.IO
@@ -63,17 +84,42 @@ app.dynamicHelpers {
     "localhost"
 }
 
+
 db_update = (target) ->
-  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
-  fsearch.search target, 0, (err, f) ->
-    movie_factory = new MovieFactory f
-    movie_factory.get_movie 6, (movie) ->
+  count = 0
+  queue = []
+  factory_callback = (movie) ->
+    if movie.isNew or movie.isModified()
       movie.save (err) ->
         if !err
           console.log "Save: #{movie.path}"
           io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
         else
           console.log err.message
+        count -= 1
+        em.emit 'process_complete'
+    else
+      em.emit 'process_complete'
+
+  em = new events.EventEmitter
+  em.on "process_complete", ->
+    f = queue.shift()
+    if f
+      count += 1
+      movie_factory = new MovieFactory f
+      movie_factory.get_movie 6, factory_callback
+    else
+      console.log "All Updated: #{target}"
+      io.sockets.emit 'all_updated', target
+
+  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
+  fsearch.search target, 0, (err, f) ->
+    if count < 4
+      count += 1
+      movie_factory = new MovieFactory f
+      movie_factory.get_movie 6, factory_callback
+    else
+      queue.push f
 
 ## Routes
 
@@ -103,14 +149,14 @@ app.post '/watch', (req, res) ->
       res.send err.message, 422
 
 app.get '/watch/:id', (req, res) ->
-  watch = watchModel.findById req.params.id, (err, watch) ->
+  watchModel.findById req.params.id, (err, watch) ->
     if !err
       res.render 'watches/form', {layout: false, watch: watch}
     else
       res.redirect('/watches', err: err)
 
 app.put '/watch/:id', (req, res) ->
-  watch = watchModel.findById req.params.id, (err, watch) ->
+  watchModel.findById req.params.id, (err, watch) ->
     if !err
       watch.dir = req.body.watch.dir
       watch.save (err2) ->
@@ -120,7 +166,7 @@ app.put '/watch/:id', (req, res) ->
           res.send err2.message, 422
 
 app.del '/watch/:id', (req, res) ->
-  watch = watchModel.findById req.params.id, (err, watch) ->
+  watchModel.findById req.params.id, (err, watch) ->
     if !err
       watch.remove (err) ->
         if !err
@@ -132,6 +178,28 @@ app.del '/watch/:id', (req, res) ->
 app.get '/watches', (req, res) ->
   watchModel.find {}, (err, watches) ->
     res.render 'watches/index', {title: 'Watch List', watches: watches}
+
+app.get '/movie/:id/play', (req, res) ->
+  player = "/Applications/MPlayer OSX Extended.app/Contents/MacOS/MPlayer OSX Extended"
+  cmd = "open"
+  args = ["-a", "#{player}"]
+  movieModel.findById req.params.id, (err, movie) ->
+    if !err
+      args.push "#{movie.path}"
+      movie.play(cmd, args)
+      res.send movie
+    else
+      res.send("Cannot Start Play", 422)
+
+app.get '/movies/:page?', (req, res) ->
+  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+  page = if req.params.page then parseInt req.params.page else 1
+  paginate = require 'paginate-js'
+  movieModel.count {}, (err, count) ->
+    p = paginate {count_elements: count, elements_per_page: per_page}
+    movieModel.find({}).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+      res.render 'movies/index', {title: 'Movie List', movies: movies, p: p, page: page}
+
 
 app.listen 4000
 console.log "Express server listening on port %d in %s mode", app.address().port, app.settings.env

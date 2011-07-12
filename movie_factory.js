@@ -22,7 +22,6 @@ MovieFactory = (function() {
   __extends(MovieFactory, events.EventEmitter);
   function MovieFactory(filename) {
     this.filename = filename;
-    this.movie = new movieModel;
     this.stats_finish = false;
     this.md5_finish = false;
     this.info_finish = false;
@@ -49,9 +48,19 @@ MovieFactory = (function() {
     this.on('thumbnail_finish', function() {
       return callback(this.movie);
     });
-    this.get_stats();
-    this.get_md5_hash();
-    return this.get_info();
+    return movieModel.findOne({
+      path: this.filename
+    }, __bind(function(err, movie) {
+      if (movie) {
+        this.movie = movie;
+        this.emit('md5_finish');
+      } else {
+        this.movie = new movieModel;
+        this.get_md5_hash();
+      }
+      this.get_stats();
+      return this.get_info();
+    }, this));
   };
   MovieFactory.prototype.get_stats = function() {
     try {
@@ -66,6 +75,7 @@ MovieFactory = (function() {
         return this.emit('stats_finish');
       }, this));
     } catch (error) {
+      console.log("Get Stats Error");
       console.log(error);
       console.log(error.stack);
       return this.emit('stats_finish');
@@ -89,6 +99,7 @@ MovieFactory = (function() {
         return this.emit('md5_finish');
       }, this));
     } catch (error) {
+      console.log("Get MD5 Error");
       console.log(error);
       console.log(error.stack);
       return this.emit('md5_finish');
@@ -109,15 +120,17 @@ MovieFactory = (function() {
       }, this));
     } catch (error) {
       console.log("[Failed] Get Info: " + this.filename);
+      console.log(error);
+      console.log(error.stack);
       return this.emit('info_finish');
     }
   };
   MovieFactory.prototype.create_thumbnail = function(count) {
-    return fs.stat("thumbs/" + this.movie.title + "-" + this.movie.md5_hash + ".jpg", __bind(function(err) {
+    return fs.stat("public/images/thumbs/" + this.movie.title + "-" + this.movie.md5_hash + ".jpg", __bind(function(err) {
       var j;
       if (err) {
         try {
-          return thumbnailer.multi_create(count, this.filename, "thumbs/" + this.movie.title + ".jpg", "200x150", __bind(function(err2, args) {
+          return thumbnailer.multi_create(count, this.filename, "public/images/thumbs/" + this.movie.title + ".jpg", "200x150", __bind(function(err2, args) {
             if (err2) {
               console.log("[Failed] Create Thumbnail: " + this.filename);
               return this.emit('thumbnail_finish');
@@ -127,11 +140,13 @@ MovieFactory = (function() {
             }
           }, this));
         } catch (error) {
+          console.log("Create Thumbnail Error: " + this.filename);
           console.log(error);
+          console.log(error.stack);
           for (j = 1; 1 <= count ? j <= count : j >= count; 1 <= count ? j++ : j--) {
-            fs.unlink("thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err4) {
-              if (err4) {
-                return console.log(err4);
+            fs.unlink("public/images/thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err3) {
+              if (err3) {
+                return console.log(err3);
               }
             }, this));
           }
@@ -144,29 +159,43 @@ MovieFactory = (function() {
     }, this));
   };
   MovieFactory.prototype.merge_thumbnail = function(count) {
-    var files, i, j;
+    var cmd, files, i, j;
     files = '';
     for (i = 1; 1 <= count ? i <= count : i >= count; 1 <= count ? i++ : i--) {
-      files += "\"thumbs/" + this.movie.title + "-" + i + ".jpg\" ";
+      files += "\"public/images/thumbs/" + this.movie.title + "-" + i + ".jpg\" ";
     }
     try {
-      return exec("convert +append " + files + " \"thumbs/" + this.movie.title + "-" + this.movie.md5_hash + ".jpg\"", __bind(function(err, stdout, stderr) {
+      cmd = "convert +append " + files + " \"public/images/thumbs/" + this.movie.title + "-" + this.movie.md5_hash + ".jpg\"";
+      return exec(cmd, {
+        maxBuffer: 1000 * 1024
+      }, __bind(function(err, stdout, stderr) {
+        var j;
         if (err) {
-          throw "[Failed] Merge Thumbnails: " + this.filename;
+          console.log("[Failed] Merge Thumbnails: " + this.filename);
+        } else {
+          console.log("[Success] Merge Thumbnails: " + this.filename);
         }
-        return console.log("[Success] Merge Thumbnails: " + this.filename);
+        for (j = 1; 1 <= count ? j <= count : j >= count; 1 <= count ? j++ : j--) {
+          fs.unlink("public/images/thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err2) {
+            if (err2) {
+              return console.log(err2);
+            }
+          }, this));
+        }
+        return this.emit('thumbnail_finish');
       }, this));
-    } catch (errmsg) {
-      return console.log(errmsg);
-    } finally {
+    } catch (error) {
+      console.log("Merge Thumbnails Error: " + this.filename);
+      console.log(error);
+      console.log(error.stack);
       for (j = 1; 1 <= count ? j <= count : j >= count; 1 <= count ? j++ : j--) {
-        fs.unlink("thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err2) {
+        fs.unlink("public/images/thumbs/" + this.movie.title + "-" + j + ".jpg", __bind(function(err2) {
           if (err2) {
             return console.log(err2);
           }
         }, this));
       }
-      this.emit('thumbnail_finish');
+      return this.emit('thumbnail_finish');
     }
   };
   return MovieFactory;

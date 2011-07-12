@@ -2,11 +2,11 @@ mongoose = require 'mongoose'
 Schema = mongoose.Schema
 
 Movie = new Schema {
-  name: {type: String, required: true}
+  name: {type: String, required: true, index: true}
   path: {type: String, required: true, index: {unique: true, dropDups: true}}
   length: {type: Number}
   size: {type: Number, required: true}
-  regist_date: {type: Date}
+  regist_date: {type: Date, index: true}
   view_count: {type: Number, default: 0}
   container: {type: String}
   video_codec: {type: String}

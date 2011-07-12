@@ -4,7 +4,8 @@ Schema = mongoose.Schema;
 Movie = new Schema({
   name: {
     type: String,
-    required: true
+    required: true,
+    index: true
   },
   path: {
     type: String,
@@ -22,7 +23,8 @@ Movie = new Schema({
     required: true
   },
   regist_date: {
-    type: Date
+    type: Date,
+    index: true
   },
   view_count: {
     type: Number,

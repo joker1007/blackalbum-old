@@ -8,6 +8,7 @@ html
     link(rel='stylesheet', href='/javascripts/jgrowl/jquery.jgrowl.css')
     script(src='/javascripts/jquery-1.6.2.min.js')
     script(src='/javascripts/jquery-ui-1.8.14.custom.min.js')
+    script(src='/javascripts/jquery.lazyload.mini.js')
     script(src='/javascripts/jgrowl/jquery.jgrowl_compressed.js')
     script(src='http://#{hostname}:8765/socket.io/socket.io.js')
     script(src='/javascripts/coffee-script.js')
@@ -15,6 +16,9 @@ html
   body
     header
       h1 BlackAlbum
+      nav#menu
+        a.menu-item(href='/watches') 監視ディレクトリ
+
     - if (typeof err !== "undefined")
       dir.error_notification
         = err.message

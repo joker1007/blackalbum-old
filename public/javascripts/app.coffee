@@ -4,7 +4,15 @@ $().ready ->
     $.jGrowl "Saved: #{data.name}"
   socket.on 'duplicate_movie', (data) ->
     $.jGrowl "Already Exist: #{data.name}"
+  socket.on 'all_updated', (target) ->
+    $.jGrowl "All Updated: #{target}"
+  socket.on 'player_exit', (msg) ->
+    $.jGrowl msg
 
+  $("img.thumb").lazyload {
+    placeholder : "/images/gray.gif"
+    effect : "fadeIn"
+  }
 
   $("a.watch_destroy").live 'click', (e) ->
     e.preventDefault()
@@ -82,6 +90,15 @@ $().ready ->
     $('#new_watch_form').dialog 'open'
     $('form#new_watch').bind 'submit', ->
       return false
+
+  $('a.movie-play').click (e) ->
+    e.preventDefault()
+    $.ajax {
+      type: 'GET'
+      url: $(this).attr 'href'
+      success: (movie) ->
+        $.jGrowl "Start Play: #{movie.name}"
+    }
 
   $('a.updatedb').click (e) ->
     e.preventDefault()

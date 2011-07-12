@@ -13,7 +13,6 @@ movieModel = mongoose.model('Movie', Movie)
 
 class MovieFactory extends events.EventEmitter
   constructor: (@filename) ->
-    @movie = new movieModel
     @stats_finish = false
     @md5_finish = false
     @info_finish = false
@@ -38,9 +37,16 @@ class MovieFactory extends events.EventEmitter
       callback(@movie)
       
 
-    this.get_stats()
-    this.get_md5_hash()
-    this.get_info()
+    movieModel.findOne {path: @filename}, (err, movie) =>
+      if movie
+        @movie = movie
+        this.emit 'md5_finish'
+      else
+        @movie = new movieModel
+        this.get_md5_hash()
+
+      this.get_stats()
+      this.get_info()
 
   get_stats: ->
     try
@@ -53,6 +59,7 @@ class MovieFactory extends events.EventEmitter
           @movie.regist_date = Date.now()
         this.emit 'stats_finish'
     catch error
+      console.log "Get Stats Error"
       console.log error
       console.log error.stack
       this.emit 'stats_finish'
@@ -69,6 +76,7 @@ class MovieFactory extends events.EventEmitter
         @movie.md5_hash = md5
         this.emit 'md5_finish'
     catch error
+      console.log "Get MD5 Error"
       console.log error
       console.log error.stack
       this.emit 'md5_finish'
@@ -86,13 +94,15 @@ class MovieFactory extends events.EventEmitter
         this.emit 'info_finish'
     catch error
       console.log "[Failed] Get Info: #{@filename}"
+      console.log error
+      console.log error.stack
       this.emit 'info_finish'
 
   create_thumbnail: (count)->
-    fs.stat "thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg", (err) =>
+    fs.stat "public/images/thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg", (err) =>
       if err
         try
-          thumbnailer.multi_create count, @filename, "thumbs/#{@movie.title}.jpg", "200x150", (err2, args) =>
+          thumbnailer.multi_create count, @filename, "public/images/thumbs/#{@movie.title}.jpg", "200x150", (err2, args) =>
             if err2
               console.log "[Failed] Create Thumbnail: #{@filename}"
               this.emit 'thumbnail_finish'
@@ -100,11 +110,13 @@ class MovieFactory extends events.EventEmitter
               console.log "[Success] Create Thumbnail: #{@filename}"
               this.merge_thumbnail args.count
         catch error
+          console.log "Create Thumbnail Error: #{@filename}"
           console.log error
+          console.log error.stack
           for j in [1..count]
-            fs.unlink "thumbs/#{@movie.title}-#{j}.jpg", (err4) =>
-              if err4
-                console.log err4
+            fs.unlink "public/images/thumbs/#{@movie.title}-#{j}.jpg", (err3) =>
+              if err3
+                console.log err3
           this.emit 'thumbnail_finish'
       else
         console.log "Thumbnail Already Exist: #{@filename}"
@@ -114,17 +126,27 @@ class MovieFactory extends events.EventEmitter
   merge_thumbnail: (count) ->
     files = ''
     for i in [1..count]
-      files += "\"thumbs/#{@movie.title}-#{i}.jpg\" "
+      files += "\"public/images/thumbs/#{@movie.title}-#{i}.jpg\" "
 
     try
-      exec "convert +append #{files} \"thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg\"", (err, stdout, stderr) =>
-        throw "[Failed] Merge Thumbnails: #{@filename}" if err
-        console.log "[Success] Merge Thumbnails: #{@filename}"
-    catch errmsg
-      console.log errmsg
-    finally
+      cmd = "convert +append #{files} \"public/images/thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg\""
+      exec cmd, {maxBuffer: 1000*1024}, (err, stdout, stderr) =>
+        if err
+          console.log "[Failed] Merge Thumbnails: #{@filename}"
+        else
+          console.log "[Success] Merge Thumbnails: #{@filename}"
+        for j in [1..count]
+          fs.unlink "public/images/thumbs/#{@movie.title}-#{j}.jpg", (err2) =>
+            if err2
+              console.log err2
+
+        this.emit 'thumbnail_finish'
+    catch error
+      console.log "Merge Thumbnails Error: #{@filename}"
+      console.log error
+      console.log error.stack
       for j in [1..count]
-        fs.unlink "thumbs/#{@movie.title}-#{j}.jpg", (err2) =>
+        fs.unlink "public/images/thumbs/#{@movie.title}-#{j}.jpg", (err2) =>
           if err2
             console.log err2
 
