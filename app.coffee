@@ -82,7 +82,6 @@ app = module.exports = express.createServer()
 
 app.configure ->
   app.set 'views', __dirname + '/views'
-  app.register '.coffee',  require('coffeekup')
   app.set 'view engine', 'jade'
   app.use express.logger()
   app.use express.bodyParser()
