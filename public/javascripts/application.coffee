@@ -33,7 +33,7 @@ open_form_dialog = (sender, e, dialog_options, ajax_callbacks) ->
   }
 
 $().ready ->
-  socket = io.connect "http://localhost:8765/"
+  socket = io.connect 'localhost'
   socket.on 'save_movie', (data) ->
     $.jGrowl "Saved: #{data.name}"
   socket.on 'duplicate_movie', (data) ->
@@ -164,4 +164,21 @@ $().ready ->
         main.queue ->
           main.fadeIn()
           main.dequeue()
+    }
+
+  $('.paginator a').live 'click', (e) ->
+    e.preventDefault()
+    $.ajax {
+      type: 'GET'
+      url: $(this).attr 'href'
+      data: "xhr=true"
+      success: (html) ->
+        movies = $('.movies')
+        movies.fadeOut()
+        movies.queue ->
+          movies.html(html)
+          movies.dequeue()
+        movies.queue ->
+          movies.fadeIn()
+          movies.dequeue()
     }

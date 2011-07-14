@@ -33,6 +33,9 @@ Movie = new Schema({
   container: {
     type: String
   },
+  resolution: {
+    type: String
+  },
   video_codec: {
     type: String
   },

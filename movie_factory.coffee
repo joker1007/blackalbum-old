@@ -88,6 +88,7 @@ class MovieFactory extends events.EventEmitter
         @movie.video_codec = info.video_codec ? "Unknown"
         @movie.audio_codec = info.audio_codec ? "Unknown"
         @movie.length = info.length ? 0
+        @movie.resolution = info.resolution
         @movie.video_bitrate = info.video_bitrate
         @movie.audio_bitrate = info.audio_bitrate
         @movie.audio_sample = info.audio_sample

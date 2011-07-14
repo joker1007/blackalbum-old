@@ -113,6 +113,7 @@ MovieFactory = (function() {
         this.movie.video_codec = (_ref2 = info.video_codec) != null ? _ref2 : "Unknown";
         this.movie.audio_codec = (_ref3 = info.audio_codec) != null ? _ref3 : "Unknown";
         this.movie.length = (_ref4 = info.length) != null ? _ref4 : 0;
+        this.movie.resolution = info.resolution;
         this.movie.video_bitrate = info.video_bitrate;
         this.movie.audio_bitrate = info.audio_bitrate;
         this.movie.audio_sample = info.audio_sample;

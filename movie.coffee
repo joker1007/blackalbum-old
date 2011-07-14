@@ -9,6 +9,7 @@ Movie = new Schema {
   regist_date: {type: Date, index: true}
   view_count: {type: Number, default: 0}
   container: {type: String}
+  resolution: {type: String}
   video_codec: {type: String}
   video_bitrate: {type: Number}
   audio_codec: {type: String}

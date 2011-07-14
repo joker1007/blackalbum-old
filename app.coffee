@@ -9,6 +9,7 @@ fs = require 'fs'
 path = require 'path'
 crypto = require 'crypto'
 events = require 'events'
+opts = require 'opts'
 {exec} = require 'child_process'
 {spawn} = require 'child_process'
 
@@ -20,6 +21,22 @@ ffmpeg_info = require './ffmpeg_info'
 {Watch} = require './watch'
 {Movie} = require './movie'
 {Player} = require './player'
+
+
+###
+  Command option parse
+###
+
+options = [
+  {
+    short: 'p'
+    long: 'port'
+    description: 'Server port'
+    value: true
+  },
+]
+opts.parse(options, true)
+
 
 ###
   Model define
@@ -59,14 +76,6 @@ playerModel.prototype.form_mode = ->
   else
     return "edit"
 
-
-## Socket.IO
-io = require('socket.io').listen(8765)
-io.sockets.on 'connection', (socket) ->
-  console.log "Get Connection from Browser"
-
-  socket.on 'disconnect', ->
-    console.log "Disconnect"
 
 ## Express
 app = module.exports = express.createServer()
@@ -275,12 +284,14 @@ app.get '/movies/:page?', (req, res) ->
     movieModel.count {}, (err, count) ->
       p = paginate {count_elements: count, elements_per_page: per_page}
       movieModel.find({}).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
-        if req.query.xhr
+        if req.query.xhr && req.params.page
+          res.render 'movies/list', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
+        else if req.query.xhr
           res.render 'movies/index', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
         else
           res.render 'movies/index', {title: 'Movie List', movies: movies, p: p, page: page, player_options: player_options}
 
-app.post '/movies/search/:page?', (req, res) ->
+search_movies = (req, res, q) ->
   playerModel.find {}, (err, players) ->
     player_options = players.reduce((html, p) ->
       html += "<option value=\"#{p._id}\">#{p.name}</option>"
@@ -288,7 +299,6 @@ app.post '/movies/search/:page?', (req, res) ->
     per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
     page = if req.params.page then parseInt req.params.page else 1
     paginate = require 'paginate-js'
-    q = req.body.q
     if q.substr(0, 1) == '!'
       query = {tag : q.substr(1)}
     else
@@ -298,12 +308,30 @@ app.post '/movies/search/:page?', (req, res) ->
       p = paginate {count_elements: count, elements_per_page: per_page}
       movieModel.find(query).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr
-          res.render 'movies/index', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
+          res.render 'movies/list', {layout: false, movies: movies, p: p, page: page, player_options: player_options, search: true}
         else
-          res.render 'movies/index', {title: "Search: #{q}", movies: movies, p: p, page: page, player_options: player_options}
+          res.render 'movies/index', {title: "Search: #{q}", movies: movies, p: p, page: page, player_options: player_options, search: true}
+
+app.get '/movies/search/:page?', (req, res) ->
+  q = req.query.q
+  req.q = q
+  search_movies req, res, q
+
+app.post '/movies/search/:page?', (req, res) ->
+  q = req.body.q
+  req.q = q
+  search_movies req, res, q
 
 
-app.listen 4000
+port = if opts.get 'port' then parseInt(opts.get('port')) else 4000
+app.listen port
 console.log "Express server listening on port %d in %s mode", app.address().port, app.settings.env
 
 
+## Socket.IO
+io = require('socket.io').listen(app)
+io.sockets.on 'connection', (socket) ->
+  console.log "Get Connection from Browser"
+
+  socket.on 'disconnect', ->
+    console.log "Disconnect"

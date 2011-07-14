@@ -1,9 +1,12 @@
-div(id="movie-#{movie._id}", class="movie")
-  a.movie-play(href="/movie/#{movie._id}/play")
-    img.thumb(src="/images/thumbs/#{movie.title}-#{movie.md5_hash}.jpg")
-  .info
-    div(id="movie-length-#{movie._id}", class="movie-length") TIME: #{movie.length_str()}
-    div(id="movie-video_codec-#{movie._id}", class="movie-video_codec") CODEC: #{movie.video_codec}
-  .clearfix
-    div(id="movie-name-#{movie._id}", class="movie-name")
-      a.movie-play(href="/movie/#{movie._id}/play") #{movie.name}
+- each movie in movies
+  div(id="movie-#{movie._id}", class="movie")
+    a.movie-play(href="/movie/#{movie._id}/play")
+      img.thumb(src="/images/thumbs/#{movie.title}-#{movie.md5_hash}.jpg")
+    .info
+      div(id="movie-length-#{movie._id}", class="movie-length movie-info") TIME: #{movie.length_str()}
+      div(id="movie-video_codec-#{movie._id}", class="movie-video_codec movie-info") VCODEC: #{movie.video_codec}
+      div(id="movie-audio_codec-#{movie._id}", class="movie-audio_codec movie-info") ACODEC: #{movie.audio_codec}
+      div(id="movie-resolution-#{movie._id}", class="movie-resolution movie-info") SIZE: #{movie.resolution}
+    .clearfix
+      div(id="movie-name-#{movie._id}", class="movie-name")
+        a.movie-play(href="/movie/#{movie._id}/play") #{movie.name}

@@ -42,7 +42,7 @@
   };
   $().ready(function() {
     var socket;
-    socket = io.connect("http://localhost:8765/");
+    socket = io.connect('localhost');
     socket.on('save_movie', function(data) {
       return $.jGrowl("Saved: " + data.name);
     });
@@ -182,7 +182,7 @@
         }
       });
     });
-    return $('a.menu-item').click(function(e) {
+    $('a.menu-item').click(function(e) {
       e.preventDefault();
       return $.ajax({
         type: 'GET',
@@ -199,6 +199,27 @@
           return main.queue(function() {
             main.fadeIn();
             return main.dequeue();
+          });
+        }
+      });
+    });
+    return $('.paginator a').live('click', function(e) {
+      e.preventDefault();
+      return $.ajax({
+        type: 'GET',
+        url: $(this).attr('href'),
+        data: "xhr=true",
+        success: function(html) {
+          var movies;
+          movies = $('.movies');
+          movies.fadeOut();
+          movies.queue(function() {
+            movies.html(html);
+            return movies.dequeue();
+          });
+          return movies.queue(function() {
+            movies.fadeIn();
+            return movies.dequeue();
           });
         }
       });
