@@ -19,8 +19,14 @@ ffmpeg_info = require './ffmpeg_info'
 
 {Watch} = require './watch'
 {Movie} = require './movie'
+{Player} = require './player'
+
+###
+  Model define
+###
 
 watchModel = mongoose.model('Watch', Watch)
+
 movieModel = mongoose.model('Movie', Movie)
 movieModel.prototype.length_str = ->
   if this.length
@@ -41,6 +47,17 @@ movieModel.prototype.play = (player, args) ->
     console.log msg
     io.sockets.emit 'player_exit', msg
 
+playerModel = mongoose.model('Player', Player)
+playerModel.prototype.form_action_url = ->
+  if this.isNew
+    return "/player"
+  else
+    return "/player/#{this._id}"
+playerModel.prototype.form_mode = ->
+  if this.isNew
+    return "new"
+  else
+    return "edit"
 
 
 ## Socket.IO
@@ -52,7 +69,6 @@ io.sockets.on 'connection', (socket) ->
     console.log "Disconnect"
 
 ## Express
-
 app = module.exports = express.createServer()
 
 app.configure ->
@@ -85,6 +101,7 @@ app.dynamicHelpers {
 }
 
 
+## function define
 db_update = (target) ->
   count = 0
   queue = []
@@ -114,6 +131,10 @@ db_update = (target) ->
 
   fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
   fsearch.search target, 0, (err, f) ->
+    if require('os').type() == 'Darwin'
+      {Iconv} = require 'iconv'
+      conv = new Iconv 'UTF-8-MAC', 'UTF-8'
+      f = conv.convert(f).toString 'utf-8'
     if count < 4
       count += 1
       movie_factory = new MovieFactory f
@@ -124,9 +145,7 @@ db_update = (target) ->
 ## Routes
 
 app.get '/', (req, res) ->
-  res.render 'index', {
-    title: 'Express'
-  }
+  res.redirect '/movies'
 
 app.get '/updatedb', (req, res) ->
   watchModel.find {}, (err, watches) ->
@@ -135,6 +154,7 @@ app.get '/updatedb', (req, res) ->
         db_update(w.dir)
       res.send "Update Start"
 
+## Watch
 app.get '/watch', (req, res) ->
   watch = new watchModel
   res.render 'watches/new', {title: 'New Watch List', watch: watch}
@@ -164,6 +184,8 @@ app.put '/watch/:id', (req, res) ->
           res.send watch
         else
           res.send err2.message, 422
+    else
+      res.send err.message, 404
 
 app.del '/watch/:id', (req, res) ->
   watchModel.findById req.params.id, (err, watch) ->
@@ -173,32 +195,112 @@ app.del '/watch/:id', (req, res) ->
           res.send watch
         else
           console.log err
-          res.send("Delete Failed", 422)
+          res.send "Delete Failed", 422
 
 app.get '/watches', (req, res) ->
   watchModel.find {}, (err, watches) ->
-    res.render 'watches/index', {title: 'Watch List', watches: watches}
-
-app.get '/movie/:id/play', (req, res) ->
-  player = "/Applications/MPlayer OSX Extended.app/Contents/MacOS/MPlayer OSX Extended"
-  cmd = "open"
-  args = ["-a", "#{player}"]
-  movieModel.findById req.params.id, (err, movie) ->
-    if !err
-      args.push "#{movie.path}"
-      movie.play(cmd, args)
-      res.send movie
+    if req.query.xhr
+      res.render 'watches/index', {layout: false, watches: watches}
     else
-      res.send("Cannot Start Play", 422)
+      res.render 'watches/index', {title: 'Watch List', watches: watches}
+
+## Player
+app.get '/player/:id', (req, res) ->
+  playerModel.findById req.params.id, (err, player) ->
+    if !err
+      res.render 'players/form', {layout: false, player: player}
+
+app.put '/player/:id', (req, res) ->
+  playerModel.findById req.params.id, (err, player) ->
+    if !err
+      player.name = req.body.player.name
+      player.path = req.body.player.path
+      player.save (err2) ->
+        if !err2
+          res.send player
+        else
+          res.send err2.message, 422
+    else
+      res.send err.message, 404
+
+app.del '/player/:id', (req, res) ->
+  playerModel.findById req.params.id, (err, player) ->
+    if !err
+      player.remove (err2) ->
+        if !err2
+          res.send player
+        else
+          res.send err2.message, 422
+    else
+      res.send err.message, 404
+
+
+app.get '/player', (req, res) ->
+  player = new playerModel
+  res.render 'players/form', {layout: false, player: player}
+
+app.post '/player', (req, res) ->
+  player = new playerModel req.body.player
+  player.save (err) ->
+    if !err
+      res.send player
+    else
+      res.send err.message, 422
+
+
+## Movie
+app.get '/movie/:id/play', (req, res) ->
+  playerModel.findById req.query.pid, (err, player) ->
+    if !err
+      cmd = "open"
+      args = ["-a", "#{player.path}"]
+      movieModel.findById req.params.id, (err2, movie) ->
+        if !err2
+          args.push "#{movie.path}"
+          movie.play(cmd, args)
+          res.send movie
+        else
+          res.send("Cannot Start Play", 422)
+    else
+      res.send("No Player Selected", 404)
 
 app.get '/movies/:page?', (req, res) ->
-  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
-  page = if req.params.page then parseInt req.params.page else 1
-  paginate = require 'paginate-js'
-  movieModel.count {}, (err, count) ->
-    p = paginate {count_elements: count, elements_per_page: per_page}
-    movieModel.find({}).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
-      res.render 'movies/index', {title: 'Movie List', movies: movies, p: p, page: page}
+  playerModel.find {}, (err, players) ->
+    player_options = players.reduce((html, p) ->
+      html += "<option value=\"#{p._id}\">#{p.name}</option>"
+    , "")
+    per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+    page = if req.params.page then parseInt req.params.page else 1
+    paginate = require 'paginate-js'
+    movieModel.count {}, (err, count) ->
+      p = paginate {count_elements: count, elements_per_page: per_page}
+      movieModel.find({}).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+        if req.query.xhr
+          res.render 'movies/index', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
+        else
+          res.render 'movies/index', {title: 'Movie List', movies: movies, p: p, page: page, player_options: player_options}
+
+app.post '/movies/search/:page?', (req, res) ->
+  playerModel.find {}, (err, players) ->
+    player_options = players.reduce((html, p) ->
+      html += "<option value=\"#{p._id}\">#{p.name}</option>"
+    , "")
+    per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+    page = if req.params.page then parseInt req.params.page else 1
+    paginate = require 'paginate-js'
+    q = req.body.q
+    if q.substr(0, 1) == '!'
+      query = {tag : q.substr(1)}
+    else
+      query = {'$or' : [{name : new RegExp(q, "i")}, {tag : q}]}
+    movieModel.count query, (err, count) ->
+      console.log count
+      p = paginate {count_elements: count, elements_per_page: per_page}
+      movieModel.find(query).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+        if req.query.xhr
+          res.render 'movies/index', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
+        else
+          res.render 'movies/index', {title: "Search: #{q}", movies: movies, p: p, page: page, player_options: player_options}
 
 
 app.listen 4000

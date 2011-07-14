@@ -1,5 +1,33 @@
+.player
+  label Player:
+  select#player_select
+    != player_options
+  br
+  a.player_new(href="/player")
+    追加
+  |
+  a.player_edit(href="#")
+    編集
+  |
+  a.player_destroy(href="#")
+    削除
+
+.search
+  form.search_form(action="/movies/search", method="POST")
+    - if(req.body)
+      input(type="text", name="q", size="60", value=req.body.q ? req.body.q : "")
+    - else
+      input(type="text", name="q", size="60")
+    input(type="submit", value="検索")
+
 != p.render({url: '/movies/%N', page: page})
 
 != partial('movie', {collection: movies})
 
 != p.render({url: '/movies/%N', page: page})
+
+script
+  $("img.thumb").lazyload({
+    placeholder : "/images/gray.gif",
+    effect : "fadeIn"
+  });

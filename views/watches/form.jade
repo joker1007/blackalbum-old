@@ -4,3 +4,4 @@
     p
       label(for='watch[dir]') ディレクトリ:
       input(type='text', name='watch[dir]', size='60', value=(watch.dir ? watch.dir : ""))
+    input(type='submit', value=(watch.isNew ? "追加" : "更新"))

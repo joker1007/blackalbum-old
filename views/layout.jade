@@ -17,10 +17,11 @@ html
     header
       h1 BlackAlbum
       nav#menu
-        a.menu-item(href='/watches') 監視ディレクトリ
+        a.menu-item(href='/movies') メイン
+        a.menu-item(href='/watches') 監視ディレクトリ設定
 
     - if (typeof err !== "undefined")
       dir.error_notification
         = err.message
-    .main
+    #main
       != body

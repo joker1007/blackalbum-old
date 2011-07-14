@@ -1,0 +1,11 @@
+div(id="#{player.form_mode()}_player_form")
+  form(action="#{player.form_action_url()}", method='POST', id="#{player.form_mode()}_player-#{player._id}")
+    - if(player.isNew != true)
+      input(type='hidden', name='_method', value='put')
+    p
+      label(for='player[name]') 名前:
+      input(type='text', name='player[name]', size='60', value=(player.name ? player.name : ""))
+    p
+      label(for='player[path]') パス:
+      input(type='text', name='player[path]', size='60', value=(player.path ? player.path : ""))
+    input(type='submit', value=(player.isNew ? "追加" : "更新"))
