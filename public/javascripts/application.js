@@ -203,7 +203,7 @@
         }
       });
     });
-    return $('.paginator a').live('click', function(e) {
+    $('.paginator a').live('click', function(e) {
       e.preventDefault();
       return $.ajax({
         type: 'GET',
@@ -221,6 +221,31 @@
             movies.fadeIn();
             return movies.dequeue();
           });
+        }
+      });
+    });
+    return $('form.search_form').live('submit', function(e) {
+      e.preventDefault();
+      alert($(this).serialize());
+      return $.ajax({
+        type: 'POST',
+        url: $(this).attr('action') + "?xhr=true",
+        data: $(this).serialize(),
+        success: function(html) {
+          var movies;
+          movies = $('.movies');
+          movies.fadeOut();
+          movies.queue(function() {
+            movies.html(html);
+            return movies.dequeue();
+          });
+          return movies.queue(function() {
+            movies.fadeIn();
+            return movies.dequeue();
+          });
+        },
+        error: function(msg) {
+          return alert(msg);
         }
       });
     });

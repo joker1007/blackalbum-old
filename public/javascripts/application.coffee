@@ -182,3 +182,22 @@ $().ready ->
           movies.fadeIn()
           movies.dequeue()
     }
+
+  $('form.search_form').live 'submit', (e) ->
+    e.preventDefault()
+    $.ajax {
+      type: 'POST'
+      url: $(this).attr('action') + "?xhr=true"
+      data: $(this).serialize()
+      success: (html) ->
+        movies = $('.movies')
+        movies.fadeOut()
+        movies.queue ->
+          movies.html(html)
+          movies.dequeue()
+        movies.queue ->
+          movies.fadeIn()
+          movies.dequeue()
+      error: (msg) ->
+        alert msg
+    }
