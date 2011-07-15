@@ -226,7 +226,6 @@
     });
     return $('form.search_form').live('submit', function(e) {
       e.preventDefault();
-      alert($(this).serialize());
       return $.ajax({
         type: 'POST',
         url: $(this).attr('action') + "?xhr=true",
