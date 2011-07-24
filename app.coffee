@@ -85,6 +85,8 @@ app.configure ->
   app.set 'view engine', 'jade'
   app.use express.logger()
   app.use express.bodyParser()
+  app.use express.cookieParser()
+  app.use express.session({ secret: "blackalbum438aGdajgkdsl48DDagjkbmz" })
   app.use express.methodOverride()
   app.use express.compiler({ src: __dirname + '/public', enable: ['sass'] })
   app.use app.router
@@ -103,8 +105,19 @@ app.configure 'production', ->
 app.dynamicHelpers {
   req: (req, res) ->
     return req
+  session: (req, res) ->
+    return req.session
+  order_options: (req, res) ->
+    html = ""
+    html += '<option id="order_name-asc" value="name-asc">ファイル名(昇順)</option>'
+    html += '<option id="order_name-desc" value="name-desc">ファイル名(降順)</option>'
+    html += '<option id="order_regist_date-asc" value="regist_date-asc">登録日(昇順)</option>'
+    html += '<option id="order_regist_date-desc" value="regist_date-desc">登録日(降順)</option>'
+    html += '<option id="order_path-asc" value="path-asc">ファイルパス(昇順)</option>'
+    html += '<option id="order_path-desc" value="path-desc">ファイルパス(降順)</option>'
+    return html
   hostname: ->
-    "localhost"
+    "localhost:#{opts.get('port')}"
 }
 
 
@@ -142,12 +155,28 @@ db_update = (target) ->
       {Iconv} = require 'iconv'
       conv = new Iconv 'UTF-8-MAC', 'UTF-8'
       f = conv.convert(f).toString 'utf-8'
-    if count < 4
+    if count < 8
       count += 1
       movie_factory = new MovieFactory f
       movie_factory.get_movie 6, factory_callback
     else
       queue.push f
+
+order_check = (req) ->
+  req.session.order ?= ['name', 1, 'name-asc']
+  switch req.query?.order
+    when 'name-asc'
+      req.session.order = ['name', 1, 'name-asc']
+    when 'name-desc'
+      req.session.order = ['name', -1, 'name-desc']
+    when 'regist_date-asc'
+      req.session.order = ['regist_date', 1, 'regist_date-asc']
+    when 'regist_date-desc'
+      req.session.order = ['regist_date', -1, 'regist_date-desc']
+    when 'path-asc'
+      req.session.order = ['path', 1, 'path-asc']
+    when 'path-desc'
+      req.session.order = ['path', -1, 'path-desc']
 
 ## Routes
 
@@ -281,7 +310,8 @@ app.get '/movies/:page?', (req, res) ->
     paginate = require 'paginate-js'
     movieModel.count {}, (err, count) ->
       p = paginate {count_elements: count, elements_per_page: per_page}
-      movieModel.find({}).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+      order_check(req)
+      movieModel.find({}).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr && req.params.page
           res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
         else if req.query.xhr
@@ -304,7 +334,8 @@ search_movies = (req, res, q) ->
     movieModel.count query, (err, count) ->
       console.log count
       p = paginate {count_elements: count, elements_per_page: per_page}
-      movieModel.find(query).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+      order_check(req)
+      movieModel.find(query).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr
           res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
         else

@@ -126,10 +126,11 @@ $().ready ->
 
   $('a.menu-item').click (e) ->
     e.preventDefault()
+    order = $('select#order option:selected').val()
     $.ajax {
       type: 'GET'
       url: $(this).attr 'href'
-      data: "xhr=true"
+      data: "xhr=true&order=#{order}"
       success: (html) ->
         main = $('#main')
         main.fadeOut()
@@ -160,9 +161,10 @@ $().ready ->
 
   $('form.search_form').live 'submit', (e) ->
     e.preventDefault()
+    order = $('select#order option:selected').val()
     $.ajax {
       type: 'POST'
-      url: $(this).attr('action') + "?xhr=true"
+      url: $(this).attr('action') + "?xhr=true&order=#{order}"
       data: $(this).serialize()
       success: (html) ->
         movies = $('.movies')

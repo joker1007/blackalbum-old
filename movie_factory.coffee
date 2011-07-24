@@ -52,11 +52,11 @@ class MovieFactory extends events.EventEmitter
     try
       fs.stat @filename, (err, stats) =>
         if !err
-          @movie.path = @filename
-          @movie.name = path.basename @filename
-          @movie.title = path.basename(@filename).replace /\.[a-zA-Z0-9]+$/, ""
-          @movie.size = stats.size
-          @movie.regist_date = Date.now()
+          @movie.path ?= @filename
+          @movie.name ?= path.basename @filename
+          @movie.title ?= path.basename(@filename).replace /\.[a-zA-Z0-9]+$/, ""
+          @movie.size ?= stats.size
+          @movie.regist_date ?= Date.now()
         this.emit 'stats_finish'
     catch error
       console.log "Get Stats Error"

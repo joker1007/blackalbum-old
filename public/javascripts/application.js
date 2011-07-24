@@ -155,11 +155,13 @@
       });
     });
     $('a.menu-item').click(function(e) {
+      var order;
       e.preventDefault();
+      order = $('select#order option:selected').val();
       return $.ajax({
         type: 'GET',
         url: $(this).attr('href'),
-        data: "xhr=true",
+        data: "xhr=true&order=" + order,
         success: function(html) {
           var main;
           main = $('#main');
@@ -197,10 +199,12 @@
       });
     });
     return $('form.search_form').live('submit', function(e) {
+      var order;
       e.preventDefault();
+      order = $('select#order option:selected').val();
       return $.ajax({
         type: 'POST',
-        url: $(this).attr('action') + "?xhr=true",
+        url: $(this).attr('action') + ("?xhr=true&order=" + order),
         data: $(this).serialize(),
         success: function(html) {
           var movies;
