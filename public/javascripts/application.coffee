@@ -63,31 +63,6 @@ $().ready ->
         alert err.responseText
     }
 
-
-  $('#new_watch_form').dialog {
-    autoOpen: false
-    height: 300
-    width: 600
-    modal: true
-    buttons: {
-      '追加' : ->
-        thisObj = this
-        form = $('form#new_watch')
-        $.ajax {
-          type: 'POST'
-          url: form.attr 'action'
-          data: form.serialize()
-          success: (html) ->
-            $('#watch_list').append html
-            $(thisObj).dialog 'close'
-          error: (err) ->
-            alert err.responseText
-        }
-      'キャンセル' : ->
-        $(this).dialog 'close'
-    }
-  }
-
   $('a.new_watch').live 'click', (e) ->
     e.preventDefault()
     $('#new_watch_form').dialog 'open'

@@ -80,34 +80,6 @@
         }
       });
     });
-    $('#new_watch_form').dialog({
-      autoOpen: false,
-      height: 300,
-      width: 600,
-      modal: true,
-      buttons: {
-        '追加': function() {
-          var form, thisObj;
-          thisObj = this;
-          form = $('form#new_watch');
-          return $.ajax({
-            type: 'POST',
-            url: form.attr('action'),
-            data: form.serialize(),
-            success: function(html) {
-              $('#watch_list').append(html);
-              return $(thisObj).dialog('close');
-            },
-            error: function(err) {
-              return alert(err.responseText);
-            }
-          });
-        },
-        'キャンセル': function() {
-          return $(this).dialog('close');
-        }
-      }
-    });
     $('a.new_watch').live('click', function(e) {
       e.preventDefault();
       $('#new_watch_form').dialog('open');
