@@ -10,8 +10,9 @@
 - else
   != p.render({url: '/movies/%N', page: page})
 
-:coffeescript
-  $("img.thumb").lazyload {
-    placeholder : "/images/gray.gif"
-    effect : "fadeIn"
-  }
+- if (count > 10)
+  :coffeescript
+    $("img.thumb").lazyload {
+      placeholder : "/images/gray.gif"
+      effect : "fadeIn"
+    }

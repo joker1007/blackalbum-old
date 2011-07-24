@@ -164,7 +164,7 @@ app.get '/updatedb', (req, res) ->
 ## Watch
 app.get '/watch', (req, res) ->
   watch = new watchModel
-  res.render 'watches/new', {title: 'New Watch List', watch: watch}
+  res.render 'watches/new', {watch: watch}
 
 app.post '/watch', (req, res) ->
   watch = new watchModel req.body.watch
@@ -209,7 +209,7 @@ app.get '/watches', (req, res) ->
     if req.query.xhr
       res.render 'watches/index', {layout: false, watches: watches}
     else
-      res.render 'watches/index', {title: 'Watch List', watches: watches}
+      res.render 'watches/index', {watches: watches}
 
 ## Player
 app.get '/player/:id', (req, res) ->
@@ -283,11 +283,11 @@ app.get '/movies/:page?', (req, res) ->
       p = paginate {count_elements: count, elements_per_page: per_page}
       movieModel.find({}).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr && req.params.page
-          res.render 'movies/list', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
+          res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
         else if req.query.xhr
-          res.render 'movies/index', {layout: false, movies: movies, p: p, page: page, player_options: player_options}
+          res.render 'movies/index', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
         else
-          res.render 'movies/index', {title: 'Movie List', movies: movies, p: p, page: page, player_options: player_options}
+          res.render 'movies/index', {movies: movies, p: p, count: count, page: page, player_options: player_options}
 
 search_movies = (req, res, q) ->
   playerModel.find {}, (err, players) ->
@@ -306,9 +306,9 @@ search_movies = (req, res, q) ->
       p = paginate {count_elements: count, elements_per_page: per_page}
       movieModel.find(query).sort('name', 1).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr
-          res.render 'movies/list', {layout: false, movies: movies, p: p, page: page, player_options: player_options, search: true}
+          res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
         else
-          res.render 'movies/index', {title: "Search: #{q}", movies: movies, p: p, page: page, player_options: player_options, search: true}
+          res.render 'movies/index', {movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
 
 app.get '/movies/search/:page?', (req, res) ->
   q = req.query.q
