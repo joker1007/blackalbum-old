@@ -89,14 +89,13 @@ app.configure ->
   app.use express.compiler({ src: __dirname + '/public', enable: ['sass'] })
   app.use app.router
   app.use express.static(__dirname + '/public')
+  mongoose.connect('mongodb://localhost/blackalbum')
 
 app.configure 'development', ->
   app.use express.errorHandler({ dumpExceptions: true, showStack: true })
-  mongoose.connect('mongodb://localhost/blackalbum_dev')
 
 app.configure 'production', ->
   app.use express.errorHandler()
-  mongoose.connect('mongodb://localhost/blackalbum')
 
 
 ## dynamicHelper
