@@ -13,14 +13,14 @@ opts = require 'opts'
 {exec} = require 'child_process'
 {spawn} = require 'child_process'
 
-{FileSearcher} = require './search_file'
-{MovieFactory} = require './movie_factory'
-thumbnailer = require './ffmpegthumbnailer'
-ffmpeg_info = require './ffmpeg_info'
+{FileSearcher} = require './lib/search_file'
+{MovieFactory} = require './lib/movie_factory'
+thumbnailer = require './lib/ffmpegthumbnailer'
+ffmpeg_info = require './lib/ffmpeg_info'
 
-{Watch} = require './watch'
-{Movie} = require './movie'
-{Player} = require './player'
+{Watch} = require './lib/watch'
+{Movie} = require './lib/movie'
+{Player} = require './lib/player'
 
 
 ###
