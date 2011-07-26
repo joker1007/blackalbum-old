@@ -1,4 +1,3 @@
-{FileSearcher} = require './search_file'
 thumbnailer = require './ffmpegthumbnailer'
 ffmpeg_info = require './ffmpeg_info'
 fs = require 'fs'
@@ -17,7 +16,7 @@ class MovieFactory extends events.EventEmitter
     @md5_finish = false
     @info_finish = false
 
-  get_movie: (thumbnail_count, callback)->
+  get_movie: (thumbnail_count, force = false, callback)->
     this.on 'stats_finish', ->
       @stats_finish = true
       if @stats_finish && @md5_finish && @info_finish
@@ -38,15 +37,16 @@ class MovieFactory extends events.EventEmitter
       
 
     movieModel.findOne {path: @filename}, (err, movie) =>
-      if movie
+      if !force and movie
         @movie = movie
         this.emit 'md5_finish'
+        this.emit 'stats_finish'
+        this.emit 'info_finish'
       else
         @movie = new movieModel
         this.get_md5_hash()
-
-      this.get_stats()
-      this.get_info()
+        this.get_stats()
+        this.get_info()
 
   get_stats: ->
     try

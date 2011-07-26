@@ -144,23 +144,26 @@ db_update = (target) ->
     if f
       count += 1
       movie_factory = new MovieFactory f
-      movie_factory.get_movie 6, factory_callback
+      movie_factory.get_movie 6, false, factory_callback
     else
       console.log "All Updated: #{target}"
       io.sockets.emit 'all_updated', target
 
   fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
   fsearch.search target, 0, (err, f) ->
-    if require('os').type() == 'Darwin'
-      {Iconv} = require 'iconv'
-      conv = new Iconv 'UTF-8-MAC', 'UTF-8'
-      f = conv.convert(f).toString 'utf-8'
-    if count < 8
-      count += 1
-      movie_factory = new MovieFactory f
-      movie_factory.get_movie 6, factory_callback
+    if !err
+      if require('os').type() == 'Darwin'
+        {Iconv} = require 'iconv'
+        conv = new Iconv 'UTF-8-MAC', 'UTF-8'
+        f = conv.convert(f).toString 'utf-8'
+      if count < 8
+        count += 1
+        movie_factory = new MovieFactory f
+        movie_factory.get_movie 6, false, factory_callback
+      else
+        queue.push f
     else
-      queue.push f
+      console.log err
 
 order_check = (req) ->
   req.session.order ?= ['name', 1, 'name-asc']
