@@ -16,7 +16,6 @@ Seq = require 'seq'
 
 {FileSearcher} = require './lib/search_file'
 {MovieFactory} = require './lib/movie_factory'
-thumbnailer = require './lib/ffmpegthumbnailer'
 ffmpeg_info = require './lib/ffmpeg_info'
 
 {Watch} = require './lib/watch'
