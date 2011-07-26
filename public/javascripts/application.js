@@ -65,7 +65,10 @@
           url: $(this).attr("href"),
           data: "_method=delete",
           success: function(watch) {
-            return $("tr#watch-" + watch._id).fadeOut();
+            return $("#watch-" + watch._id).fadeOut();
+          },
+          error: function(msg) {
+            return alert(msg);
           }
         });
       }

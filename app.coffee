@@ -10,6 +10,7 @@ path = require 'path'
 crypto = require 'crypto'
 events = require 'events'
 opts = require 'opts'
+Seq = require 'seq'
 {exec} = require 'child_process'
 {spawn} = require 'child_process'
 
@@ -215,26 +216,35 @@ app.get '/watch/:id', (req, res) ->
       res.redirect('/watches', err: err)
 
 app.put '/watch/:id', (req, res) ->
-  watchModel.findById req.params.id, (err, watch) ->
-    if !err
+  Seq()
+    .seq_((next) ->
+      watchModel.findById req.params.id, next
+    )
+    .seq_((next, watch) ->
+      console.log watch
       watch.dir = req.body.watch.dir
-      watch.save (err2) ->
-        if !err2
-          res.send watch
-        else
-          res.send err2.message, 422
-    else
-      res.send err.message, 404
+      next.stack.push watch
+      watch.save next
+    )
+    .seq_((next, watch) ->
+      res.send watch
+    )
+    .catch((err) ->
+      res.send err.message, 422
+    )
 
 app.del '/watch/:id', (req, res) ->
-  watchModel.findById req.params.id, (err, watch) ->
-    if !err
-      watch.remove (err) ->
-        if !err
-          res.send watch
-        else
-          console.log err
-          res.send "Delete Failed", 422
+  Seq()
+    .seq_((next) ->
+      watchModel.remove { _id: req.params.id }, next
+    )
+    .seq_((next, watch) ->
+      res.send {_id: req.params.id}
+    )
+    .catch((err) ->
+      console.log err
+      res.send "Delete Failed", 422
+    )
 
 app.get '/watches', (req, res) ->
   watchModel.find {}, (err, watches) ->
@@ -248,30 +258,42 @@ app.get '/player/:id', (req, res) ->
   playerModel.findById req.params.id, (err, player) ->
     if !err
       res.render 'players/form', {layout: false, player: player}
+    else
+      res.send err.message, 422
 
 app.put '/player/:id', (req, res) ->
-  playerModel.findById req.params.id, (err, player) ->
-    if !err
+  Seq()
+    .seq_((next) ->
+      playerModel.findById req.params.id, next
+    )
+    .seq_((next, player) ->
       player.name = req.body.player.name
       player.path = req.body.player.path
-      player.save (err2) ->
-        if !err2
-          res.send player
-        else
-          res.send err2.message, 422
-    else
-      res.send err.message, 404
+      next.stack.push player
+      player.save next
+    )
+    .seq_((next, player) ->
+      res.send player
+    )
+    .catch((err) ->
+      res.send err.message, 422
+    )
 
 app.del '/player/:id', (req, res) ->
-  playerModel.findById req.params.id, (err, player) ->
-    if !err
-      player.remove (err2) ->
-        if !err2
-          res.send player
-        else
-          res.send err2.message, 422
-    else
-      res.send err.message, 404
+  Seq()
+    .seq_((next) ->
+      playerModel.findById req.params.id, next
+    )
+    .seq_((next, player) ->
+      next.stack.push player
+      player.remove next
+    )
+    .seq_((next, player) ->
+      res.send player
+    )
+    .catch((err) ->
+      res.send err.message, 422
+    )
 
 
 app.get '/player', (req, res) ->
@@ -289,31 +311,45 @@ app.post '/player', (req, res) ->
 
 ## Movie
 app.get '/movie/:id/play', (req, res) ->
-  playerModel.findById req.query.pid, (err, player) ->
-    if !err
+  Seq()
+    .par_((next) ->
+      playerModel.findById req.query.pid, next
+    )
+    .par_((next) ->
+      movieModel.findById req.params.id, next
+    )
+    .seq_((next, player, movie) ->
       cmd = "open"
       args = ["-a", "#{player.path}"]
-      movieModel.findById req.params.id, (err2, movie) ->
-        if !err2
-          args.push "#{movie.path}"
-          movie.play(cmd, args)
-          res.send movie
-        else
-          res.send("Cannot Start Play", 422)
-    else
-      res.send("No Player Selected", 404)
+      args.push "#{movie.path}"
+      movie.play(cmd, args)
+      res.send movie
+    )
+    .catch((err) ->
+      res.send("Cannot Start Play", 422)
+    )
 
 app.get '/movies/:page?', (req, res) ->
-  playerModel.find {}, (err, players) ->
-    player_options = players.reduce((html, p) ->
-      html += "<option value=\"#{p._id}\">#{p.name}</option>"
-    , "")
-    per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
-    page = if req.params.page then parseInt req.params.page else 1
-    paginate = require 'paginate-js'
-    movieModel.count {}, (err, count) ->
+  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+  page = if req.params.page then parseInt req.params.page else 1
+  paginate = require 'paginate-js'
+  order_check(req)
+
+  Seq()
+    .par_((next) ->
+      playerModel.find {}, next
+    )
+    .par_((next) ->
+      movieModel.count {}, next
+    )
+    .seq_((next, players, count) ->
+      player_options = players.reduce((html, p) ->
+        html += "<option value=\"#{p._id}\">#{p.name}</option>"
+      , "")
       p = paginate {count_elements: count, elements_per_page: per_page}
-      order_check(req)
+      next(null, player_options, count, p)
+    )
+    .seq_((next, player_options, count, p) ->
       movieModel.find({}).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr && req.params.page
           res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
@@ -321,28 +357,39 @@ app.get '/movies/:page?', (req, res) ->
           res.render 'movies/index', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
         else
           res.render 'movies/index', {movies: movies, p: p, count: count, page: page, player_options: player_options}
+    )
 
 search_movies = (req, res, q) ->
-  playerModel.find {}, (err, players) ->
-    player_options = players.reduce((html, p) ->
-      html += "<option value=\"#{p._id}\">#{p.name}</option>"
-    , "")
-    per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
-    page = if req.params.page then parseInt req.params.page else 1
-    paginate = require 'paginate-js'
-    if q.substr(0, 1) == '!'
-      query = {tag : q.substr(1)}
-    else
-      query = {'$or' : [{name : new RegExp(q, "i")}, {tag : q}]}
-    movieModel.count query, (err, count) ->
-      console.log count
+  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+  page = if req.params.page then parseInt req.params.page else 1
+  paginate = require 'paginate-js'
+  order_check(req)
+  if q.substr(0, 1) == '!'
+    query = {tag : q.substr(1)}
+  else
+    query = {'$or' : [{name : new RegExp(q, "i")}, {tag : q}]}
+
+  Seq()
+    .par_((next) ->
+      playerModel.find {}, next
+    )
+    .par_((next) ->
+      movieModel.count query, next
+    )
+    .seq_((next, players, count) ->
+      player_options = players.reduce((html, p) ->
+        html += "<option value=\"#{p._id}\">#{p.name}</option>"
+      , "")
       p = paginate {count_elements: count, elements_per_page: per_page}
-      order_check(req)
+      next(null, player_options, count, p)
+    )
+    .seq_((next, player_options, count, p) ->
       movieModel.find(query).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
         if req.query.xhr
           res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
         else
           res.render 'movies/index', {movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
+    )
 
 app.get '/movies/search/:page?', (req, res) ->
   q = req.query.q

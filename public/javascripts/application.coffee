@@ -52,7 +52,9 @@ $().ready ->
         url: $(this).attr "href"
         data: "_method=delete"
         success: (watch)->
-          $("tr#watch-#{watch._id}").fadeOut()
+          $("#watch-#{watch._id}").fadeOut()
+        error: (msg) ->
+          alert msg
       }
 
   $('a.watch_edit').live 'click', (e) ->
