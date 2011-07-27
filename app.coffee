@@ -125,30 +125,6 @@ app.dynamicHelpers {
 db_update = (target) ->
   count = 0
   queue = []
-  factory_callback = (movie) ->
-    if movie.isNew or movie.isModified()
-      movie.save (err) ->
-        if !err
-          console.log "Save: #{movie.path}"
-          io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
-        else
-          console.log err.message
-        count -= 1
-        em.emit 'process_complete'
-    else
-      em.emit 'process_complete'
-
-  em = new events.EventEmitter
-  em.on "process_complete", ->
-    f = queue.shift()
-    if f
-      count += 1
-      movie_factory = new MovieFactory f
-      movie_factory.get_movie 6, false, factory_callback
-    else
-      console.log "All Updated: #{target}"
-      io.sockets.emit 'all_updated', target
-
   fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
   fsearch.search target, 0, (err, f) ->
     if !err
@@ -164,6 +140,36 @@ db_update = (target) ->
         queue.push f
     else
       console.log err
+
+  em = new events.EventEmitter
+  em.on "process_complete", ->
+    f = queue.shift()
+    if f
+      count += 1
+      movie_factory = new MovieFactory f
+      movie_factory.get_movie 6, false, factory_callback
+    else
+      console.log "All Updated: #{target}"
+      io.sockets.emit 'all_updated', target
+
+  factory_callback = (err, movie) ->
+    if !err
+      if movie.isNew or movie.isModified()
+        movie.save (err) ->
+          if !err
+            console.log "Save: #{movie.path}"
+            io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
+          else
+            console.log err.message
+          count -= 1
+          em.emit 'process_complete'
+      else
+        em.emit 'process_complete'
+    else
+      console.log err
+      em.emit 'process_complete'
+
+
 
 order_check = (req) ->
   req.session.order ?= ['name', 1, 'name-asc']

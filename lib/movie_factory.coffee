@@ -1,4 +1,4 @@
-thumbnailer = require './ffmpegthumbnailer'
+{FFmpegThumbnailer} = require './ffmpegthumbnailer'
 ffmpeg_info = require './ffmpeg_info'
 fs = require 'fs'
 path = require 'path'
@@ -6,6 +6,7 @@ events = require 'events'
 crypto = require 'crypto'
 {exec} = require 'child_process'
 mongoose = require 'mongoose'
+Seq = require 'seq'
 
 {Movie} = require './movie'
 movieModel = mongoose.model('Movie', Movie)
@@ -15,27 +16,9 @@ class MovieFactory extends events.EventEmitter
     @stats_finish = false
     @md5_finish = false
     @info_finish = false
+    @error = null
 
   get_movie: (thumbnail_count, force = false, callback)->
-    this.on 'stats_finish', ->
-      @stats_finish = true
-      if @stats_finish && @md5_finish && @info_finish
-        this.create_thumbnail thumbnail_count
-
-    this.on 'md5_finish', ->
-      @md5_finish = true
-      if @stats_finish && @md5_finish && @info_finish
-        this.create_thumbnail thumbnail_count
-
-    this.on 'info_finish', ->
-      @info_finish = true
-      if @stats_finish && @md5_finish && @info_finish
-        this.create_thumbnail thumbnail_count
-
-    this.on 'thumbnail_finish', ->
-      callback(@movie)
-      
-
     movieModel.findOne {path: @filename}, (err, movie) =>
       if !force and movie
         @movie = movie
@@ -48,6 +31,37 @@ class MovieFactory extends events.EventEmitter
         this.get_stats()
         this.get_info()
 
+    this.on 'stats_finish', (err) ->
+      @error = err if err
+      @stats_finish = true
+      if @stats_finish && @md5_finish && @info_finish
+        if @error
+          callback(@error)
+        else
+          this.create_thumbnail thumbnail_count
+
+    this.on 'md5_finish', (err) ->
+      @error = err if err
+      @md5_finish = true
+      if @stats_finish && @md5_finish && @info_finish
+        if @error
+          callback(@error)
+        else
+          this.create_thumbnail thumbnail_count
+
+    this.on 'info_finish', (err) ->
+      @error = err if err
+      @info_finish = true
+      if @stats_finish && @md5_finish && @info_finish
+        if @error
+          callback(@error)
+        else
+          this.create_thumbnail thumbnail_count
+
+    this.on 'thumbnail_finish', ->
+      callback(null, @movie)
+
+
   get_stats: ->
     fs.stat @filename, (err, stats) =>
       if !err
@@ -57,9 +71,8 @@ class MovieFactory extends events.EventEmitter
         @movie.size ?= stats.size
         @movie.regist_date ?= Date.now()
       else
-        console.log "Get Stats Error"
-        console.log err
-      this.emit 'stats_finish'
+        console.log "[Failed] Get Stats Error: #{@filename}"
+      this.emit 'stats_finish', err
 
   get_md5_hash: ->
     md5sum = crypto.createHash 'md5'
@@ -73,15 +86,12 @@ class MovieFactory extends events.EventEmitter
       this.emit 'md5_finish'
 
     rs.on 'error', (exception) =>
-      console.log "Get MD5 Error"
-      console.log exception
-      this.emit 'md5_finish'
+      console.log "[Failed] Get MD5 Error: #{@filename}"
+      this.emit 'md5_finish', exception
 
   get_info: ->
     ffmpeg_info.get_info @filename, (err, info) =>
       if !err
-        console.log err
-        console.log info
         @movie.container = info.container ? "Unknown"
         @movie.video_codec = info.video_codec ? "Unknown"
         @movie.audio_codec = info.audio_codec ? "Unknown"
@@ -92,29 +102,33 @@ class MovieFactory extends events.EventEmitter
         @movie.audio_sample = info.audio_sample
       else
         console.log "[Failed] Get Info: #{@filename}"
-        console.log err
-      this.emit 'info_finish'
+      this.emit 'info_finish', err
 
   create_thumbnail: (count)->
     fs.stat "public/images/thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg", (err) =>
       if err
-        try
-          thumbnailer.multi_create count, @filename, "public/images/thumbs/#{@movie.title}.jpg", "200x150", (err2, args) =>
-            if err2
-              console.log "[Failed] Create Thumbnail: #{@filename}"
+        thumbnailer = new FFmpegThumbnailer
+        thumbnailer.multi_create count, @filename, "public/images/thumbs/#{@movie.title}.jpg", "200x150"
+        thumbnailer.on 'multi_end', (args) =>
+          console.log "[Success] Create Thumbnail: #{@filename}"
+          this.merge_thumbnail args.count
+        thumbnailer.on 'multi_error', (err) =>
+          console.log "[Failed] Create Thumbnail: #{@filename}"
+          Seq()
+            .seq_((next) ->
+              next(null, [1..count])
+            )
+            .flatten()
+            .seqEach_((next, i) =>
+              fs.unlink "public/images/thumbs/#{@movie.title}-#{i}.jpg", next
+            )
+            .seq((next) =>
               this.emit 'thumbnail_finish'
-            else
-              console.log "[Success] Create Thumbnail: #{@filename}"
-              this.merge_thumbnail args.count
-        catch error
-          console.log "Create Thumbnail Error: #{@filename}"
-          console.log error
-          console.log error.stack
-          for j in [1..count]
-            fs.unlink "public/images/thumbs/#{@movie.title}-#{j}.jpg", (err3) =>
-              if err3
-                console.log err3
-          this.emit 'thumbnail_finish'
+            )
+            .catch((err) =>
+              this.emit 'thumbnail_finish', err
+            )
+
       else
         console.log "Thumbnail Already Exist: #{@filename}"
         this.emit 'thumbnail_finish'
@@ -125,28 +139,26 @@ class MovieFactory extends events.EventEmitter
     for i in [1..count]
       files += "\"public/images/thumbs/#{@movie.title}-#{i}.jpg\" "
 
-    try
-      cmd = "convert +append #{files} \"public/images/thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg\""
-      exec cmd, {maxBuffer: 1000*1024}, (err, stdout, stderr) =>
-        if err
-          console.log "[Failed] Merge Thumbnails: #{@filename}"
-        else
-          console.log "[Success] Merge Thumbnails: #{@filename}"
-        for j in [1..count]
-          fs.unlink "public/images/thumbs/#{@movie.title}-#{j}.jpg", (err2) =>
-            if err2
-              console.log err2
-
+    Seq()
+      .seq_((next) =>
+        cmd = "convert +append #{files} \"public/images/thumbs/#{@movie.title}-#{@movie.md5_hash}.jpg\""
+        exec cmd, {maxBuffer: 1000*1024}, next
+      )
+      .seq_((next) =>
+        console.log "[Success] Merge Thumbnails: #{@filename}"
+        next(null, [1..count])
+      )
+      .flatten()
+      .seqEach_((next, i) =>
+        fs.unlink "public/images/thumbs/#{@movie.title}-#{i}.jpg", next
+      )
+      .seq_((next) =>
         this.emit 'thumbnail_finish'
-    catch error
-      console.log "Merge Thumbnails Error: #{@filename}"
-      console.log error
-      console.log error.stack
-      for j in [1..count]
-        fs.unlink "public/images/thumbs/#{@movie.title}-#{j}.jpg", (err2) =>
-          if err2
-            console.log err2
-
-      this.emit 'thumbnail_finish'
+      )
+      .catch((err) =>
+        console.log "[Failed] Merge Thumbnails: #{@filename}"
+        console.log err
+        this.emit 'thumbnail_finish'
+      )
 
 exports.MovieFactory = MovieFactory

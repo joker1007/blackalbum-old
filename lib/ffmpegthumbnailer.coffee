@@ -53,5 +53,4 @@ class FFmpegThumbnailer extends events.EventEmitter
         )
 
 
-thumbnailer = new FFmpegThumbnailer
-module.exports = thumbnailer
+exports.FFmpegThumbnailer = FFmpegThumbnailer
