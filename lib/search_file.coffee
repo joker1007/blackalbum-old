@@ -1,21 +1,30 @@
+Seq = require 'seq'
 exports.FileSearcher = class FileSearcher
   constructor: (@regex) ->
 
   search: (dir, level, callback) ->
     fs = require 'fs'
     path = require 'path'
-    fs.readdir dir, (err, files) =>
-      if !err
-        for f in files
-          f_path = path.join dir, f
-          f_stat = fs.statSync f_path
-          if f_stat.isDirectory()
+    Seq()
+      .seq_((next) ->
+        fs.readdir dir, next
+      )
+      .flatten()
+      .parEach_((next, f) ->
+        f_path = path.join dir, f
+        fs.stat f_path, next.into(f_path)
+      )
+      .seq_((next) =>
+        for f_path, stat of next.vars
+          if stat.isDirectory()
             if level > 0
               this.search f_path, level-1, callback
-            else if level == -1
+            else if level ==  -1
               this.search f_path, level, callback
           else
-            if f.match @regex
-              callback(err, f_path)
-      else
+            if path.basename(f_path).match @regex
+              callback(null, f_path)
+      )
+      .catch((err) ->
         callback(err)
+      )
