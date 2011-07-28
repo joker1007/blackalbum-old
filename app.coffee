@@ -41,40 +41,9 @@ opts.parse(options, true)
 ###
   Model define
 ###
-
 watchModel = mongoose.model('Watch', Watch)
-
 movieModel = mongoose.model('Movie', Movie)
-movieModel.prototype.length_str = ->
-  if this.length
-    hour = parseInt(this.length / 3600)
-    hour = if hour < 10 then "0#{hour}" else "#{hour}"
-    min = parseInt((this.length % 3600) / 60)
-    min = if min < 10 then "0#{min}" else "#{min}"
-    sec = this.length % 60
-    sec = if sec < 10 then "0#{sec}" else "#{sec}"
-    return "#{hour}:#{min}:#{sec}"
-  else
-    return "00:00:00"
-
-movieModel.prototype.play = (player, args) ->
-  pl = spawn player, args
-  pl.on 'exit', (code) ->
-    msg = "Player process exited with code #{code}"
-    console.log msg
-    io.sockets.emit 'player_exit', msg
-
 playerModel = mongoose.model('Player', Player)
-playerModel.prototype.form_action_url = ->
-  if this.isNew
-    return "/player"
-  else
-    return "/player/#{this._id}"
-playerModel.prototype.form_mode = ->
-  if this.isNew
-    return "new"
-  else
-    return "edit"
 
 
 ## Express

@@ -6,4 +6,17 @@ Player = new Schema {
   path: {type: String, required: true}
 }
 
+Player.method {
+  form_action_url: ->
+    if this.isNew
+      return "/player"
+    else
+      return "/player/#{this._id}"
+  form_mode: ->
+    if this.isNew
+      return "new"
+    else
+      return "edit"
+}
+
 exports.Player = Player
