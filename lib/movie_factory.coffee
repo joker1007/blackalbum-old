@@ -8,7 +8,7 @@ crypto = require 'crypto'
 mongoose = require 'mongoose'
 Seq = require 'seq'
 
-{Movie} = require './movie'
+{Movie} = require '../model/movie'
 movieModel = mongoose.model('Movie', Movie)
 
 class MovieFactory extends events.EventEmitter

@@ -18,9 +18,9 @@ Seq = require 'seq'
 {MovieFactory} = require './lib/movie_factory'
 ffmpeg_info = require './lib/ffmpeg_info'
 
-{Watch} = require './lib/watch'
-{Movie} = require './lib/movie'
-{Player} = require './lib/player'
+{Watch} = require './model/watch'
+{Movie} = require './model/movie'
+{Player} = require './model/player'
 
 
 ###
