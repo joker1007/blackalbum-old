@@ -122,52 +122,46 @@ app.dynamicHelpers {
 
 
 ## function define
-db_update = (target) ->
-  count = 0
-  queue = []
+db_update = (target, em) ->
   fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
-  fsearch.search target, 0, (err, f) ->
-    if !err
+  Seq()
+    .seq_((next) ->
+      fsearch.search target, 0, next
+    )
+    .flatten()
+    .parEach(16, (f) ->
+      next = this
       if require('os').type() == 'Darwin'
         {Iconv} = require 'iconv'
         conv = new Iconv 'UTF-8-MAC', 'UTF-8'
         f = conv.convert(f).toString 'utf-8'
-      if count < 8
-        count += 1
-        movie_factory = new MovieFactory f
-        movie_factory.get_movie 6, false, factory_callback
-      else
-        queue.push f
-    else
-      console.log err
-
-  em = new events.EventEmitter
-  em.on "process_complete", ->
-    f = queue.shift()
-    if f
-      count += 1
       movie_factory = new MovieFactory f
-      movie_factory.get_movie 6, false, factory_callback
-    else
+      movie_factory.get_movie 6, false, (err, movie) ->
+        if !err
+          if movie.isNew or movie.isModified()
+            movie.save (err) ->
+              if !err
+                console.log "Save: #{movie.path}"
+                io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
+                next(null, f)
+              else
+                console.log err
+                next()
+          else
+            next(null, f)
+        else
+          console.log err
+          next()
+    )
+    .seq_((next) ->
       console.log "All Updated: #{target}"
       io.sockets.emit 'all_updated', target
-
-  factory_callback = (err, movie) ->
-    if !err
-      if movie.isNew or movie.isModified()
-        movie.save (err) ->
-          if !err
-            console.log "Save: #{movie.path}"
-            io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
-          else
-            console.log err.message
-          count -= 1
-          em.emit 'process_complete'
-      else
-        em.emit 'process_complete'
-    else
+      em.emit 'db_update_end' if em
+    )
+    .catch((err) ->
       console.log err
-      em.emit 'process_complete'
+      em.emit 'db_update_end' if em
+    )
 
 
 
@@ -193,11 +187,23 @@ app.get '/', (req, res) ->
   res.redirect '/movies'
 
 app.get '/updatedb', (req, res) ->
-  watchModel.find {}, (err, watches) ->
-    if !err
-      for w in watches
-        db_update(w.dir)
-      res.send "Update Start"
+  Seq()
+    .seq_((next) ->
+      watchModel.find {}, next
+    )
+    .seq_((next, watches) ->
+      em = new events.EventEmitter
+      em.on 'db_update_end', ->
+        w = watches.shift()
+        if w
+          db_update(w.dir, em)
+
+      em.emit 'db_update_end'
+    )
+    .catch((err) ->
+      console.err
+    )
+  res.send "Update Start"
 
 ## Watch
 app.get '/watch', (req, res) ->
