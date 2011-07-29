@@ -346,6 +346,8 @@ search_movies = (req, res, q) ->
   order_check(req)
   if q.substr(0, 1) == '!'
     query = {tag : q.substr(1)}
+  else if q.substr(0, 1) == '#'
+    query = {path : new RegExp(q.substr(1), "i")}
   else
     query = {'$or' : [{name : new RegExp(q, "i")}, {tag : q}]}
 
