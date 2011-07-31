@@ -43,7 +43,6 @@ Movie.method {
     pl.on 'exit', (code) ->
       msg = "Player process exited with code #{code}"
       console.log msg
-      io.sockets.emit 'player_exit', msg
 }
 
 exports.Movie = Movie
