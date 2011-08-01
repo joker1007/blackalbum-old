@@ -2,6 +2,7 @@ mongoose = require 'mongoose'
 Schema = mongoose.Schema
 path = require 'path'
 fs = require 'fs'
+crypto = require 'crypto'
 {spawn} = require 'child_process'
 zipfile = require 'zipfile'
 Seq = require 'seq'
@@ -23,8 +24,55 @@ Book = new Schema {
   genre: {type: String}
 }
 
+Book.static {
+  get_book: (filename, callback) ->
+    B = this
+    Seq()
+      .seq_((next) ->
+        B.findOne {path: filename}, next
+      )
+      .seq_((next, book) =>
+        if !book
+          fs.stat filename, next
+        else
+          callback(null, book)
+      )
+      .seq_((next, stat) ->
+        book = new B
+        book.path ?= filename
+        book.name ?= path.basename filename
+        book.title ?= path.basename(filename).replace /\.[a-zA-Z0-9]+$/, ""
+        book.size ?= stat.size
+        book.regist_date ?= Date.now()
+        next(null, book)
+      )
+      .seq_((next, book) ->
+        md5sum = crypto.createHash 'md5'
+        rs = fs.createReadStream filename, {start: 0, end: 100 * 1024}
+
+        rs.on 'data', (d) ->
+          md5sum.update d
+
+        rs.on 'end', =>
+          md5 = md5sum.digest 'hex'
+          book.md5_hash = md5
+          next(null, book)
+
+        rs.on 'error', (exception) =>
+          console.log "[Failed] Get MD5 Error: #{filename}"
+          next(exception)
+      )
+      .seq_((next, book) ->
+        callback(null, book)
+      )
+      .catch((err) ->
+        callback(err)
+      )
+
+}
+
 Book.method {
-  create_thumbnail: (count = 6, options...) ->
+  create_thumbnail: (count = 6, options..., callback) ->
     fullpath = @path
     basename = path.basename(fullpath, ".zip")
     size = options[0] ? "160x120"
@@ -71,14 +119,14 @@ Book.method {
       )
       .seq_((next) =>
         console.log "[Success] Create Thumnails: #{@path}"
-        this.merge_thumbnail count, basename
+        this.merge_thumbnail count, basename, callback
       )
       .catch((err) =>
         console.log "[Failed] Create Thumnails: #{@path}"
-        this.clear_thumbnail count, basename
+        this.clear_thumbnail count, basename, callback
       )
 
-  clear_thumbnail: (count = 6, basename) ->
+  clear_thumbnail: (count = 6, basename, callback) ->
     Seq()
       .seq_((next) ->
         next(null, [1..count])
@@ -89,12 +137,15 @@ Book.method {
       )
       .seq_((next) =>
         console.log "[Success] Clear Thumbnails: #{@path}"
+        if callback
+          callback(null, this)
       )
       .catch((err) =>
         console.log "[Failed] Clear Thumbnails: #{@path}"
+        callback(err)
       )
 
-  merge_thumbnail: (count = 6, basename) ->
+  merge_thumbnail: (count = 6, basename, callback) ->
     Seq()
       .seq_((next) =>
         cmd = IMAGEMAGICK
@@ -113,11 +164,11 @@ Book.method {
       )
       .seq_((next) =>
         console.log "[Success] Merge Thumbnails: #{@path}"
-        this.clear_thumbnail count, basename
+        this.clear_thumbnail count, basename, callback
       )
       .catch((err) =>
         console.log "[Failed] Merge Thumbnails: #{@path}"
-        this.clear_thumbnail count, basename
+        this.clear_thumbnail count, basename, callback
       )
 }
 

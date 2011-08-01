@@ -21,6 +21,7 @@ ffmpeg_info = require './lib/ffmpeg_info'
 {Watch} = require './model/watch'
 {Movie} = require './model/movie'
 {Player} = require './model/player'
+{Book} = require './model/book'
 
 
 ###
@@ -44,6 +45,7 @@ opts.parse(options, true)
 watchModel = mongoose.model('Watch', Watch)
 movieModel = mongoose.model('Movie', Movie)
 playerModel = mongoose.model('Player', Player)
+bookModel = mongoose.model('Book', Book)
 
 
 ## Express
