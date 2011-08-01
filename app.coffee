@@ -104,23 +104,28 @@ db_update = (target, em) ->
         {Iconv} = require 'iconv'
         conv = new Iconv 'UTF-8-MAC', 'UTF-8'
         f = conv.convert(f).toString 'utf-8'
-      movie_factory = new MovieFactory f
-      movie_factory.get_movie 6, false, (err, movie) ->
-        if !err
-          if movie.isNew or movie.isModified()
-            movie.save (err) ->
-              if !err
-                console.log "Save: #{movie.path}"
-                io.sockets.emit('save_movie', {name: movie.name, path:movie.path})
-                next(null, f)
-              else
-                console.log err
-                next()
-          else
+      movie_update = (f) ->
+        Seq()
+          .seq_((next2) ->
+            movie_factory = new MovieFactory f
+            movie_factory.get_movie 6, false, next2
+          )
+          .seq_((next2, movie) ->
+            if movie.isNew or movie.isModified()
+              movie.save next2.into("movie")
+            else
+              next2("Already Exist: #{movie.path}")
+          )
+          .seq_((next2) ->
+            console.log "Save: #{next2.vars.movie.path}"
+            io.sockets.emit 'save_movie', {name: next2.vars.movie.name, path: next2.vars.movie.path}
             next(null, f)
-        else
-          console.log err
-          next()
+          )
+          .catch((err) ->
+            console.log err
+            next()
+          )
+      movie_update(f)
     )
     .seq_((next) ->
       console.log "All Updated: #{target}"
@@ -131,7 +136,6 @@ db_update = (target, em) ->
       console.log err
       em.emit 'db_update_end' if em
     )
-
 
 
 order_check = (req) ->
