@@ -15,7 +15,6 @@ Seq = require 'seq'
 {spawn} = require 'child_process'
 
 {FileSearcher} = require './lib/search_file'
-{MovieFactory} = require './lib/movie_factory'
 ffmpeg_info = require './lib/ffmpeg_info'
 
 {Watch} = require './model/watch'
@@ -109,8 +108,22 @@ db_update = (target, em) ->
       movie_update = (f) ->
         Seq()
           .seq_((next2) ->
-            movie_factory = new MovieFactory f
-            movie_factory.get_movie 6, false, next2
+            movieModel.find_or_new f, next2
+          )
+          .seq_((next2, movie) ->
+            if movie.isNew
+              movie.get_md5 next2
+            else
+              next2(null, movie)
+          )
+          .seq_((next2, movie) ->
+            if movie.isNew
+              movie.get_info next2
+            else
+              next2(null, movie)
+          )
+          .seq_((next2, movie) ->
+            movie.create_thumbnail 6, "200x150", next2
           )
           .seq_((next2, movie) ->
             if movie.isNew or movie.isModified()
