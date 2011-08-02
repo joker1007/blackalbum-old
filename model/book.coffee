@@ -89,10 +89,9 @@ Book.method {
     return targets
 
   create_thumbnail: (count = 6, options..., callback) ->
-    fullpath = @path
-    basename = path.basename(fullpath, ".zip")
+    book = this
     size = options[0] ? "160x120"
-    zf = new zipfile.ZipFile fullpath
+    zf = new zipfile.ZipFile @path
     targets = this.image_files count
 
     Seq()
@@ -113,7 +112,7 @@ Book.method {
             args.push "jpeg:size=#{size}"
           args = args.concat ['-resize', size, '-background', 'black', '-compose', 'Copy', '-gravity', 'center', '-extent', size]
           args.push '-'
-          args.push "#{THUMBNAILS_PATH}/#{basename}-#{i}.jpg"
+          args.push path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")
           im = spawn cmd, args
           im.on 'exit', (code) ->
             if code == 0
@@ -126,21 +125,21 @@ Book.method {
       )
       .seq_((next) =>
         console.log "[Success] Create Thumnails: #{@path}"
-        this.merge_thumbnail count, basename, callback
+        this.merge_thumbnail count, callback
       )
       .catch((err) =>
         console.log "[Failed] Create Thumnails: #{@path}"
-        this.clear_thumbnail count, basename, callback
+        this.clear_thumbnail count, callback
       )
 
-  clear_thumbnail: (count = 6, basename, callback) ->
+  clear_thumbnail: (count = 6, callback) ->
     Seq()
       .seq_((next) ->
         next(null, [1..count])
       )
       .flatten()
-      .seqEach_((next, i) ->
-        fs.unlink "#{THUMBNAILS_PATH}/#{basename}-#{i}.jpg", next
+      .seqEach_((next, i) =>
+        fs.unlink path.join(THUMBNAILS_PATH, "#{@title}-#{i}.jpg"), next
       )
       .seq_((next) =>
         console.log "[Success] Clear Thumbnails: #{@path}"
@@ -152,14 +151,14 @@ Book.method {
         callback(err)
       )
 
-  merge_thumbnail: (count = 6, basename, callback) ->
+  merge_thumbnail: (count = 6, callback) ->
     Seq()
       .seq_((next) =>
         cmd = IMAGEMAGICK
         args = ["+append"]
         for i in [1..count]
-          args.push "#{THUMBNAILS_PATH}/#{basename}-#{i}.jpg"
-        args.push "#{THUMBNAILS_PATH}/#{basename}-#{@md5_hash}.jpg"
+          args.push path.join(THUMBNAILS_PATH, "#{@title}-#{i}.jpg")
+        args.push path.join(THUMBNAILS_PATH, "#{@title}-#{@md5_hash}.jpg")
         im = spawn cmd, args
         im.on 'exit', (code) ->
           if code == 0
@@ -171,11 +170,11 @@ Book.method {
       )
       .seq_((next) =>
         console.log "[Success] Merge Thumbnails: #{@path}"
-        this.clear_thumbnail count, basename, callback
+        this.clear_thumbnail count, callback
       )
       .catch((err) =>
         console.log "[Failed] Merge Thumbnails: #{@path}"
-        this.clear_thumbnail count, basename, callback
+        this.clear_thumbnail count, callback
       )
 }
 
