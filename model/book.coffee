@@ -72,11 +72,8 @@ Book.static {
 }
 
 Book.method {
-  create_thumbnail: (count = 6, options..., callback) ->
-    fullpath = @path
-    basename = path.basename(fullpath, ".zip")
-    size = options[0] ? "160x120"
-    zf = new zipfile.ZipFile fullpath
+  image_files: (count = 6) ->
+    zf = new zipfile.ZipFile @path
     image_files = zf.names.filter (name, i) ->
       name.match /\.(jpe?g|png)/
     if image_files.length > (count - 1)
@@ -89,6 +86,14 @@ Book.method {
         targets.unshift cover[0]
     else
       targets = image_files
+    return targets
+
+  create_thumbnail: (count = 6, options..., callback) ->
+    fullpath = @path
+    basename = path.basename(fullpath, ".zip")
+    size = options[0] ? "160x120"
+    zf = new zipfile.ZipFile fullpath
+    targets = this,image_files count
 
     Seq()
       .seq_((next) ->
