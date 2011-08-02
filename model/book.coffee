@@ -93,7 +93,7 @@ Book.method {
     basename = path.basename(fullpath, ".zip")
     size = options[0] ? "160x120"
     zf = new zipfile.ZipFile fullpath
-    targets = this,image_files count
+    targets = this.image_files count
 
     Seq()
       .seq_((next) ->
@@ -104,6 +104,8 @@ Book.method {
         target = targets[i-1]
         extname = path.extname(target)
         zf.readFile target, (err, f) ->
+          if err
+            return next(err)
           cmd = IMAGEMAGICK
           args = []
           if extname.match(/\.jpe?g/)
