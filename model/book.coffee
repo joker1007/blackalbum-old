@@ -25,7 +25,7 @@ Book = new Schema {
 }
 
 Book.static {
-  get_book: (filename, callback) ->
+  find_or_new: (filename, callback) ->
     B = this
     Seq()
       .seq_((next) ->
@@ -44,25 +44,6 @@ Book.static {
         book.title ?= path.basename(filename).replace /\.[a-zA-Z0-9]+$/, ""
         book.size ?= stat.size
         book.regist_date ?= Date.now()
-        next(null, book)
-      )
-      .seq_((next, book) ->
-        md5sum = crypto.createHash 'md5'
-        rs = fs.createReadStream filename, {start: 0, end: 100 * 1024}
-
-        rs.on 'data', (d) ->
-          md5sum.update d
-
-        rs.on 'end', =>
-          md5 = md5sum.digest 'hex'
-          book.md5_hash = md5
-          next(null, book)
-
-        rs.on 'error', (exception) =>
-          console.log "[Failed] Get MD5 Error: #{filename}"
-          next(exception)
-      )
-      .seq_((next, book) ->
         callback(null, book)
       )
       .catch((err) ->
@@ -72,6 +53,23 @@ Book.static {
 }
 
 Book.method {
+  get_md5: (callback) ->
+    book = this
+    md5sum = crypto.createHash 'md5'
+    rs = fs.createReadStream @path, {start: 0, end: 100 * 1024}
+
+    rs.on 'data', (d) ->
+      md5sum.update d
+
+    rs.on 'end', ->
+      md5 = md5sum.digest 'hex'
+      book.md5_hash = md5
+      callback(null, book)
+
+    rs.on 'error', (exception) ->
+      console.log "[Failed] Get MD5 Error: #{book.path}"
+      callback(exception)
+
   image_files: (count = 6) ->
     zf = new zipfile.ZipFile @path
     image_files = zf.names.filter (name, i) ->
