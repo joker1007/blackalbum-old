@@ -201,7 +201,7 @@
         }
       });
     });
-    return $('form.search_form').live('submit', function(e) {
+    $('form.search_form').live('submit', function(e) {
       var order;
       e.preventDefault();
       order = $('select#order option:selected').val();
@@ -226,6 +226,24 @@
           return alert(msg);
         }
       });
+    });
+    return $('div.movie-destroy a').live('click', function(e) {
+      var confirm;
+      e.preventDefault();
+      confirm = window.confirm("本当に削除しますか？");
+      if (confirm) {
+        return $.ajax({
+          type: 'POST',
+          url: $(this).attr('href') + "?xhr=true",
+          data: "_method=delete",
+          success: function(id) {
+            return $("div#movie-" + id).fadeOut();
+          },
+          error: function(msg) {
+            return alert(msg);
+          }
+        });
+      }
     });
   });
 }).call(this);

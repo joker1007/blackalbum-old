@@ -402,6 +402,23 @@ app.post '/movies/search/:page?', (req, res) ->
   req.q = q
   search_movies req, res, q
 
+app.del '/movie/:id', (req, res) ->
+  Seq()
+    .seq_((next) ->
+      movieModel.findById req.params.id, next
+    )
+    .seq_((next, movie) ->
+      movie.remove next
+    )
+    .seq_((next) ->
+      if req.query.xhr
+        res.send req.params.id
+      else
+        res.redirect '/movies'
+    )
+    .catch((err) ->
+      res.send err.message, 422
+    )
 
 port = if opts.get 'port' then parseInt(opts.get('port')) else 4000
 app.listen port

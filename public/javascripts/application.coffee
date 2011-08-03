@@ -180,3 +180,18 @@ $().ready ->
       error: (msg) ->
         alert msg
     }
+
+  $('div.movie-destroy a').live 'click', (e) ->
+    e.preventDefault()
+    confirm = window.confirm "本当に削除しますか？"
+    if confirm
+      $.ajax {
+        type: 'POST'
+        url: $(this).attr('href') + "?xhr=true"
+        data: "_method=delete"
+        success: (id) ->
+          $("div#movie-#{id}").fadeOut()
+        error: (msg) ->
+          alert msg
+      }
+
