@@ -93,7 +93,7 @@ app.dynamicHelpers {
 
 ## function define
 db_update = (target, em) ->
-  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/)
+  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb|zip)$/)
   Seq()
     .seq_((next) ->
       fsearch.search target, 0, next
@@ -105,42 +105,45 @@ db_update = (target, em) ->
         {Iconv} = require 'iconv'
         conv = new Iconv 'UTF-8-MAC', 'UTF-8'
         f = conv.convert(f).toString 'utf-8'
-      movie_update = (f) ->
+      entry_update = (f) ->
         Seq()
           .seq_((next2) ->
-            movieModel.find_or_new f, next2
-          )
-          .seq_((next2, movie) ->
-            if movie.isNew
-              movie.get_md5 next2
+            if f.match(/zip$/)
+              bookModel.find_or_new f, next2
             else
-              next2(null, movie)
+              movieModel.find_or_new f, next2
           )
-          .seq_((next2, movie) ->
-            if movie.isNew
-              movie.get_info next2
+          .seq_((next2, entry) ->
+            if entry.isNew
+              entry.get_md5 next2
             else
-              next2(null, movie)
+              next2(null, entry)
           )
-          .seq_((next2, movie) ->
-            movie.create_thumbnail 6, "200x150", next2
-          )
-          .seq_((next2, movie) ->
-            if movie.isNew or movie.isModified()
-              movie.save next2.into("movie")
+          .seq_((next2, entry) ->
+            if entry.isNew and typeof entry.get_info == "function"
+              entry.get_info next2
             else
-              next2("Already Exist: #{movie.path}")
+              next2(null, entry)
+          )
+          .seq_((next2, entry) ->
+            entry.create_thumbnail 6, "200x150", next2
+          )
+          .seq_((next2, entry) ->
+            if entry.isNew or entry.isModified()
+              entry.save next2.into("entry")
+            else
+              next2("Already Exist: #{entry.path}")
           )
           .seq_((next2) ->
-            console.log "Save: #{next2.vars.movie.path}"
-            io.sockets.emit 'save_movie', {name: next2.vars.movie.name, path: next2.vars.movie.path}
+            console.log "Save: #{next2.vars.entry.path}"
+            io.sockets.emit 'save_entry', {name: next2.vars.entry.name, path: next2.vars.entry.path}
             next(null, f)
           )
           .catch((err) ->
             console.log err
-            next()
+            next(null, f)
           )
-      movie_update(f)
+      entry_update(f)
     )
     .seq_((next) ->
       console.log "All Updated: #{target}"
@@ -415,6 +418,118 @@ app.del '/movie/:id', (req, res) ->
         res.send req.params.id
       else
         res.redirect '/movies'
+    )
+    .catch((err) ->
+      res.send err.message, 422
+    )
+
+## Books
+app.get '/book/:id/play', (req, res) ->
+  Seq()
+    .par_((next) ->
+      playerModel.findById req.query.pid, next
+    )
+    .par_((next) ->
+      bookModel.findById req.params.id, next
+    )
+    .seq_((next, player, book) ->
+      cmd = "open"
+      args = ["-a", "#{player.path}"]
+      args.push "#{book.path}"
+      book.play(cmd, args)
+      res.send book
+    )
+    .catch((err) ->
+      res.send("Cannot Start Play", 422)
+    )
+
+app.get '/books/:page?', (req, res) ->
+  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+  page = if req.params.page then parseInt req.params.page else 1
+  paginate = require 'paginate-js'
+  order_check(req)
+
+  Seq()
+    .par_((next) ->
+      playerModel.find {}, next
+    )
+    .par_((next) ->
+      bookModel.count {}, next
+    )
+    .seq_((next, players, count) ->
+      player_options = players.reduce((html, p) ->
+        html += "<option value=\"#{p._id}\">#{p.name}</option>"
+      , "")
+      p = paginate {count_elements: count, elements_per_page: per_page}
+      next(null, player_options, count, p)
+    )
+    .seq_((next, player_options, count, p) ->
+      bookModel.find({}).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, books) ->
+        if req.query.xhr && req.params.page
+          res.render 'books/list', {layout: false, books: books, p: p, count: count, page: page, player_options: player_options}
+        else if req.query.xhr
+          res.render 'books/index', {layout: false, books: books, p: p, count: count, page: page, player_options: player_options}
+        else
+          res.render 'books/index', {books: books, p: p, count: count, page: page, player_options: player_options}
+    )
+
+search_books = (req, res, q) ->
+  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
+  page = if req.params.page then parseInt req.params.page else 1
+  paginate = require 'paginate-js'
+  order_check(req)
+  if q.substr(0, 1) == '!'
+    query = {tag : q.substr(1)}
+  else if q.substr(0, 1) == '#'
+    query = {path : new RegExp(q.substr(1), "i")}
+  else
+    query = {'$or' : [{name : new RegExp(q, "i")}, {tag : q}]}
+
+  Seq()
+    .par_((next) ->
+      playerModel.find {}, next
+    )
+    .par_((next) ->
+      bookModel.count query, next
+    )
+    .seq_((next, players, count) ->
+      player_options = players.reduce((html, p) ->
+        html += "<option value=\"#{p._id}\">#{p.name}</option>"
+      , "")
+      p = paginate {count_elements: count, elements_per_page: per_page}
+      next(null, player_options, count, p)
+    )
+    .seq_((next, player_options, count, p) ->
+      bookModel.find(query).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, books) ->
+        if req.query.xhr
+          res.render 'books/list', {layout: false, books: books, p: p, count: count, page: page, player_options: player_options, search: true}
+        else
+          res.render 'books/index', {books: books, p: p, count: count, page: page, player_options: player_options, search: true}
+    )
+
+app.get '/books/search/:page?', (req, res) ->
+  q = req.query.q
+  req.q = q
+  search_books req, res, q
+
+app.post '/books/search/:page?', (req, res) ->
+  q = req.body.q
+  req.q = q
+  search_books req, res, q
+
+app.del '/book/:id', (req, res) ->
+  Seq()
+    .seq_((next) ->
+      bookModel.findById req.params.id, next
+    )
+    .seq_((next, book) ->
+      book.remove next
+    )
+    .seq_((next) ->
+      if req.query.xhr
+        res.send req.params.id
+      else
+        res.redirect '/books'
     )
     .catch((err) ->
       res.send err.message, 422

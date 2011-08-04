@@ -34,9 +34,9 @@ open_form_dialog = (sender, e, dialog_options, ajax_callbacks) ->
 
 $().ready ->
   socket = io.connect 'localhost'
-  socket.on 'save_movie', (data) ->
+  socket.on 'save_entry', (data) ->
     $.jGrowl "Saved: #{data.name}"
-  socket.on 'duplicate_movie', (data) ->
+  socket.on 'duplicate_entry', (data) ->
     $.jGrowl "Already Exist: #{data.name}"
   socket.on 'all_updated', (target) ->
     $.jGrowl "All Updated: #{target}"
@@ -81,6 +81,17 @@ $().ready ->
       success: (movie) ->
         $.jGrowl "Start Play: #{movie.name}"
     }
+  $('a.book-play').live 'click', (e) ->
+    e.preventDefault()
+    selected = $('#player_select option:selected')
+    $.ajax {
+      type: 'GET'
+      url: $(this).attr 'href'
+      data: "pid=#{selected.val()}"
+      success: (book) ->
+        $.jGrowl "Start Play: #{book.name}"
+    }
+
 
   $('a.player_new').live 'click', (e) ->
     open_form_dialog this, e, {}, {
@@ -191,6 +202,19 @@ $().ready ->
         data: "_method=delete"
         success: (id) ->
           $("div#movie-#{id}").fadeOut()
+        error: (msg) ->
+          alert msg
+      }
+  $('div.book-destroy a').live 'click', (e) ->
+    e.preventDefault()
+    confirm = window.confirm "本当に削除しますか？"
+    if confirm
+      $.ajax {
+        type: 'POST'
+        url: $(this).attr('href') + "?xhr=true"
+        data: "_method=delete"
+        success: (id) ->
+          $("div#book-#{id}").fadeOut()
         error: (msg) ->
           alert msg
       }

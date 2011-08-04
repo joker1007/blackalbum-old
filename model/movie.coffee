@@ -125,7 +125,6 @@ Movie.method {
           this.merge_thumbnail count, callback
         thumbnailer.on 'multi_error', (err) =>
           console.log "[Failed] Create Thumbnail: #{@path}"
-          console.log err
           this.clear_thumbnail count, callback
       else
         console.log "Thumbnail Already Exist: #{@path}"
@@ -146,7 +145,7 @@ Movie.method {
       )
       .catch((err) =>
         console.log "[Failed] Clear Thumbnails: #{@path}"
-        callback(err)
+        callback(null, this)
       )
 
   merge_thumbnail: (count = 6, callback) ->

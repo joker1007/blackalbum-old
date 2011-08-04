@@ -70,20 +70,31 @@ Book.method {
       console.log "[Failed] Get MD5 Error: #{book.path}"
       callback(exception)
 
+  play: (player, args) ->
+    pl = spawn player, args
+    pl.on 'exit', (code) ->
+      msg = "Player process exited with code #{code}"
+      console.log msg
+
+
   image_files: (count = 6) ->
     zf = new zipfile.ZipFile @path
-    image_files = zf.names.filter (name, i) ->
-      name.match /\.(jpe?g|png)/
+    targets = []
+    image_files = zf.names.map((name, i) ->
+      if name.match /\.(jpe?g|png)/
+        return {name: name, idx: i}
+    ).filter (files, i) ->
+      !!files
     if image_files.length > (count - 1)
-      targets = image_files.filter (name, i) ->
-        (i % parseInt(zf.count / (count - 1))) == 0
-      cover = image_files.filter (name, i) ->
-        name.match /cover\.(jpe?g|png)/
-      if cover[0]
-        targets.shift()
-        targets.unshift cover[0]
+      for i in [0..count-1]
+        targets.push image_files[(i * parseInt(image_files.length / count))].idx
     else
-      targets = image_files
+      last = image_files.length - 1
+      if image_files.length > 0
+        i = 0
+        while targets.length < count
+          targets.push image_files[i].idx
+          i++ if i < last
     return targets
 
   create_thumbnail: (count = 6, options..., callback) ->
@@ -92,43 +103,66 @@ Book.method {
     zf = new zipfile.ZipFile @path
     targets = this.image_files count
 
-    Seq()
-      .seq_((next) ->
-        next(null, [1..count])
-      )
-      .flatten()
-      .parEach_((next, i) ->
-        target = targets[i-1]
-        extname = path.extname(target)
-        zf.readFile target, (err, f) ->
-          if err
-            return next(err)
-          cmd = IMAGEMAGICK
-          args = []
-          if extname.match(/\.jpe?g/)
-            args.push '-define'
-            args.push "jpeg:size=#{size}"
-          args = args.concat ['-resize', size, '-background', 'black', '-compose', 'Copy', '-gravity', 'center', '-extent', size]
-          args.push '-'
-          args.push path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")
-          im = spawn cmd, args
-          im.on 'exit', (code) ->
-            if code == 0
-              next()
-            else
-              next(code)
+    fs.stat path.join(THUMBNAILS_PATH, "#{@title}-#{@md5_hash}.jpg"), (err) =>
+      if err
+        if targets.length < 1
+          return callback("[Failed] Image File is nothing: #{@path}")
+        Seq()
+          .seq_((next) ->
+            next(null, [1..count])
+          )
+          .flatten()
+          .parEach_((next, i) ->
+            target = targets[i-1]
+            extname = path.extname(zf.names[target])
+            zf.readFileIndex target, (err, f) ->
+              if err
+                return next(err)
 
-          im.stdin.write f
-          im.stdin.end()
-      )
-      .seq_((next) =>
-        console.log "[Success] Create Thumnails: #{@path}"
-        this.merge_thumbnail count, callback
-      )
-      .catch((err) =>
-        console.log "[Failed] Create Thumnails: #{@path}"
-        this.clear_thumbnail count, callback
-      )
+              # エラーじゃないけど、ファイルサイズが0になる場合ダミー画像を利用する
+              unless f.length > 0
+                cp = spawn "cp", ["public/images/dummy.jpg", path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")]
+                cp.on 'exit', (code) ->
+                  if code == 0 then next() else next(code)
+                cp.stdin.end()
+              else
+                cmd = IMAGEMAGICK
+                args = []
+                if extname.match(/\.jpe?g/)
+                  args.push '-define'
+                  args.push "jpeg:size=#{size}"
+                args = args.concat ['-resize', size, '-background', 'black', '-compose', 'Copy', '-gravity', 'center', '-extent', size]
+                args.push '-'
+                args.push path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")
+                im = spawn cmd, args
+                im.on 'exit', (code) ->
+                  if code == 0 then next() else next(code)
+
+                if f.length > 200 * 1024
+                  start = 0
+                  end = 200 * 1024
+                  while end <= f.length
+                    buf = f.slice(start, end)
+                    im.stdin.write buf
+                    start = end
+                    end += 200 * 1024
+                  buf = f.slice(start)
+                  im.stdin.write buf
+                else
+                  im.stdin.write f
+                im.stdin.end()
+          )
+          .seq_((next) =>
+            console.log "[Success] Create Thumnails: #{@path}"
+            this.merge_thumbnail count, callback
+          )
+          .catch((err) =>
+            console.log "[Failed] Create Thumnails: #{@path}"
+            this.clear_thumbnail count, callback
+          )
+      else
+        console.log "Thumbnail Already Exist: #{@path}"
+        callback(null, this)
 
   clear_thumbnail: (count = 6, callback) ->
     Seq()
