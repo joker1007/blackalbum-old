@@ -95,6 +95,7 @@ Movie.method {
 
     rs.on 'error', (exception) ->
       console.log "[Failed] Get MD5 Error: #{movie.path}"
+      rs.destroy()
       callback(exception)
 
   get_info: (callback) ->
@@ -127,7 +128,6 @@ Movie.method {
           console.log "[Failed] Create Thumbnail: #{@path}"
           this.clear_thumbnail count, callback
       else
-        console.log "Thumbnail Already Exist: #{@path}"
         callback(null, this)
 
   clear_thumbnail: (count = 6, callback) ->

@@ -68,6 +68,7 @@ Book.method {
 
     rs.on 'error', (exception) ->
       console.log "[Failed] Get MD5 Error: #{book.path}"
+      rs.destroy()
       callback(exception)
 
   play: (player, args) ->
@@ -81,7 +82,7 @@ Book.method {
     zf = new zipfile.ZipFile @path
     targets = []
     image_files = zf.names.map((name, i) ->
-      if name.match /\.(jpe?g|png)/
+      if name.match /\.(jpe?g|png)/i
         return {name: name, idx: i}
     ).filter (files, i) ->
       !!files
@@ -115,42 +116,39 @@ Book.method {
           .parEach_((next, i) ->
             target = targets[i-1]
             extname = path.extname(zf.names[target])
-            zf.readFileIndex target, (err, f) ->
-              if err
-                return next(err)
+            f = zf.readFileSyncIndex target
+            # エラーじゃないけど、ファイルサイズが0になる場合ダミー画像を利用する
+            unless f.length > 0
+              cp = spawn "cp", ["public/images/dummy.jpg", path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")]
+              cp.on 'exit', (code) ->
+                if code == 0 then next() else next(code)
+              cp.stdin.end()
+            else
+              cmd = IMAGEMAGICK
+              args = []
+              if extname.match(/\.jpe?g/)
+                args.push '-define'
+                args.push "jpeg:size=#{size}"
+              args = args.concat ['-resize', size, '-background', 'black', '-compose', 'Copy', '-gravity', 'center', '-extent', size]
+              args.push '-'
+              args.push path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")
+              im = spawn cmd, args
+              im.on 'exit', (code) ->
+                if code == 0 then next() else next(code)
 
-              # エラーじゃないけど、ファイルサイズが0になる場合ダミー画像を利用する
-              unless f.length > 0
-                cp = spawn "cp", ["public/images/dummy.jpg", path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")]
-                cp.on 'exit', (code) ->
-                  if code == 0 then next() else next(code)
-                cp.stdin.end()
-              else
-                cmd = IMAGEMAGICK
-                args = []
-                if extname.match(/\.jpe?g/)
-                  args.push '-define'
-                  args.push "jpeg:size=#{size}"
-                args = args.concat ['-resize', size, '-background', 'black', '-compose', 'Copy', '-gravity', 'center', '-extent', size]
-                args.push '-'
-                args.push path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")
-                im = spawn cmd, args
-                im.on 'exit', (code) ->
-                  if code == 0 then next() else next(code)
-
-                if f.length > 200 * 1024
-                  start = 0
-                  end = 200 * 1024
-                  while end <= f.length
-                    buf = f.slice(start, end)
-                    im.stdin.write buf
-                    start = end
-                    end += 200 * 1024
-                  buf = f.slice(start)
+              if f.length > 200 * 1024
+                start = 0
+                end = 200 * 1024
+                while end <= f.length
+                  buf = f.slice(start, end)
                   im.stdin.write buf
-                else
-                  im.stdin.write f
-                im.stdin.end()
+                  start = end
+                  end += 200 * 1024
+                buf = f.slice(start)
+                im.stdin.write buf
+              else
+                im.stdin.write f
+              im.stdin.end()
           )
           .seq_((next) =>
             console.log "[Success] Create Thumnails: #{@path}"
@@ -161,7 +159,6 @@ Book.method {
             this.clear_thumbnail count, callback
           )
       else
-        console.log "Thumbnail Already Exist: #{@path}"
         callback(null, this)
 
   clear_thumbnail: (count = 6, callback) ->
@@ -180,7 +177,7 @@ Book.method {
       )
       .catch((err) =>
         console.log "[Failed] Clear Thumbnails: #{@path}"
-        callback(err)
+        callback(null, this)
       )
 
   merge_thumbnail: (count = 6, callback) ->

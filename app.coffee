@@ -93,13 +93,13 @@ app.dynamicHelpers {
 
 ## function define
 db_update = (target, em) ->
-  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb|zip)$/)
+  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb|zip)$/i)
   Seq()
     .seq_((next) ->
       fsearch.search target, 0, next
     )
     .flatten()
-    .parEach(16, (f) ->
+    .seqEach((f) ->
       next = this
       if require('os').type() == 'Darwin'
         {Iconv} = require 'iconv'
@@ -108,7 +108,7 @@ db_update = (target, em) ->
       entry_update = (f) ->
         Seq()
           .seq_((next2) ->
-            if f.match(/zip$/)
+            if f.match(/zip$/i)
               bookModel.find_or_new f, next2
             else
               movieModel.find_or_new f, next2
@@ -140,7 +140,7 @@ db_update = (target, em) ->
             next(null, f)
           )
           .catch((err) ->
-            console.log err
+            #console.log err
             next(null, f)
           )
       entry_update(f)
