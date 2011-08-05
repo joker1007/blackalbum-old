@@ -43,10 +43,10 @@
   $().ready(function() {
     var socket;
     socket = io.connect('localhost');
-    socket.on('save_movie', function(data) {
+    socket.on('save_entry', function(data) {
       return $.jGrowl("Saved: " + data.name);
     });
-    socket.on('duplicate_movie', function(data) {
+    socket.on('duplicate_entry', function(data) {
       return $.jGrowl("Already Exist: " + data.name);
     });
     socket.on('all_updated', function(target) {
@@ -100,6 +100,19 @@
         data: "pid=" + (selected.val()),
         success: function(movie) {
           return $.jGrowl("Start Play: " + movie.name);
+        }
+      });
+    });
+    $('a.book-play').live('click', function(e) {
+      var selected;
+      e.preventDefault();
+      selected = $('#player_select option:selected');
+      return $.ajax({
+        type: 'GET',
+        url: $(this).attr('href'),
+        data: "pid=" + (selected.val()),
+        success: function(book) {
+          return $.jGrowl("Start Play: " + book.name);
         }
       });
     });
@@ -201,7 +214,7 @@
         }
       });
     });
-    return $('form.search_form').live('submit', function(e) {
+    $('form.search_form').live('submit', function(e) {
       var order;
       e.preventDefault();
       order = $('select#order option:selected').val();
@@ -226,6 +239,42 @@
           return alert(msg);
         }
       });
+    });
+    $('div.movie-destroy a').live('click', function(e) {
+      var confirm;
+      e.preventDefault();
+      confirm = window.confirm("本当に削除しますか？");
+      if (confirm) {
+        return $.ajax({
+          type: 'POST',
+          url: $(this).attr('href') + "?xhr=true",
+          data: "_method=delete",
+          success: function(id) {
+            return $("div#movie-" + id).fadeOut();
+          },
+          error: function(msg) {
+            return alert(msg);
+          }
+        });
+      }
+    });
+    return $('div.book-destroy a').live('click', function(e) {
+      var confirm;
+      e.preventDefault();
+      confirm = window.confirm("本当に削除しますか？");
+      if (confirm) {
+        return $.ajax({
+          type: 'POST',
+          url: $(this).attr('href') + "?xhr=true",
+          data: "_method=delete",
+          success: function(id) {
+            return $("div#book-" + id).fadeOut();
+          },
+          error: function(msg) {
+            return alert(msg);
+          }
+        });
+      }
     });
   });
 }).call(this);

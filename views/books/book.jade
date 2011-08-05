@@ -1,0 +1,10 @@
+- each book in books
+  div(id="book-#{book._id}", class="book")
+    a.book-play(href="/book/#{book._id}/play")
+      img.thumb(src="/images/thumbs/#{book.title}-#{book.md5_hash}.jpg")
+    .info
+      div(id="book-destroy-#{book._id}", class="book-destroy book-info")
+        a(href="/book/#{book._id}") エントリを削除
+    .clearfix
+      div(id="book-name-#{book._id}", class="book-name")
+        a.book-play(href="/book/#{book._id}/play") #{book.name}
