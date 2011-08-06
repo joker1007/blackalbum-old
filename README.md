@@ -11,6 +11,7 @@ Depends
 
 * node >= 0.4.9
 * mongodb >= 1.8.2
+* ffmpegthumbnailer
 
 * express >= 2.4.0
 * mongoose >= 1.7.0
