@@ -331,6 +331,53 @@ app.get '/movie/:id/play', (req, res) ->
       res.send("Cannot Start Play", 422)
     )
 
+app.get '/movies/duplicate', (req, res) ->
+  order_check(req)
+  em = new events.EventEmitter
+
+  localErrHandler = (err) ->
+    res.send(err.message, 422)
+
+  mapFunc = ->
+    emit(this.md5_hash, 1)
+
+  reduceFunc = (key, values) ->
+    count = 0
+    values.forEach (value) ->
+      count += value
+    return count
+
+  movieModel.collection.mapReduce mapFunc.toString(), reduceFunc.toString(), {out: {inline: 1}}, (err, values) ->
+    if err
+      localErrHandler err
+    else
+      hashes = values.filter((elem) ->
+        return (elem.value > 1)
+      ).map((elem) ->
+        elem._id
+      )
+      movieModel.find({"md5_hash" : { "$in" : hashes }}).sort(req.session.order[0], req.session.order[1]).execFind (err, movies) ->
+        if err
+          localErrHandler err
+        else
+          em.emit 'find_end', movies
+
+  em.on 'find_end', (movies) ->
+    playerModel.find {}, (err, players) ->
+      if err
+        localErrHandler err
+      else
+        player_options = players.reduce((html, p) ->
+          html += "<option value=\"#{p._id}\">#{p.name}</option>"
+        , "")
+        count = 1 #dummy count
+        if req.query.xhr && req.params.page
+          res.render 'movies/list', {layout: false, movies: movies, count: count, player_options: player_options}
+        else if req.query.xhr
+          res.render 'movies/index', {layout: false, movies: movies, count: count, player_options: player_options}
+        else
+          res.render 'movies/index', {movies: movies, count: count, player_options: player_options}
+
 app.get '/movies/:page?', (req, res) ->
   per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
   page = if req.params.page then parseInt req.params.page else 1
@@ -442,6 +489,53 @@ app.get '/book/:id/play', (req, res) ->
     .catch((err) ->
       res.send("Cannot Start Play", 422)
     )
+
+app.get '/books/duplicate', (req, res) ->
+  order_check(req)
+  em = new events.EventEmitter
+
+  localErrHandler = (err) ->
+    res.send(err.message, 422)
+
+  mapFunc = ->
+    emit(this.md5_hash, 1)
+
+  reduceFunc = (key, values) ->
+    count = 0
+    values.forEach (value) ->
+      count += value
+    return count
+
+  bookModel.collection.mapReduce mapFunc.toString(), reduceFunc.toString(), {out: {inline: 1}}, (err, values) ->
+    if err
+      localErrHandler err
+    else
+      hashes = values.filter((elem) ->
+        return (elem.value > 1)
+      ).map((elem) ->
+        elem._id
+      )
+      bookModel.find({"md5_hash" : { "$in" : hashes }}).sort(req.session.order[0], req.session.order[1]).execFind (err, books) ->
+        if err
+          localErrHandler err
+        else
+          em.emit 'find_end', books
+
+  em.on 'find_end', (books) ->
+    playerModel.find {}, (err, players) ->
+      if err
+        localErrHandler err
+      else
+        player_options = players.reduce((html, p) ->
+          html += "<option value=\"#{p._id}\">#{p.name}</option>"
+        , "")
+        count = 1 #dummy count
+        if req.query.xhr && req.params.page
+          res.render 'books/list', {layout: false, books: books, count: count, player_options: player_options}
+        else if req.query.xhr
+          res.render 'books/index', {layout: false, books: books, count: count, player_options: player_options}
+        else
+          res.render 'books/index', {books: books, count: count, player_options: player_options}
 
 app.get '/books/:page?', (req, res) ->
   per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
