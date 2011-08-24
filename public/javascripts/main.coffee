@@ -20,7 +20,7 @@ $().ready ->
         $.jGrowl "Start Play: #{book.name}"
     }
 
-  $('.paginator a').live 'click', (e) ->
+  $('.paginator a, a.duplicate').live 'click', (e) ->
     e.preventDefault()
     $.ajax {
       type: 'GET'

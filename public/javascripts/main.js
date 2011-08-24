@@ -26,7 +26,7 @@
         }
       });
     });
-    $('.paginator a').live('click', function(e) {
+    $('.paginator a, a.duplicate').live('click', function(e) {
       e.preventDefault();
       return $.ajax({
         type: 'GET',

@@ -371,10 +371,8 @@ app.get '/movies/duplicate', (req, res) ->
           html += "<option value=\"#{p._id}\">#{p.name}</option>"
         , "")
         count = 1 #dummy count
-        if req.query.xhr && req.params.page
+        if req.query.xhr
           res.render 'movies/list', {layout: false, movies: movies, count: count, player_options: player_options}
-        else if req.query.xhr
-          res.render 'movies/index', {layout: false, movies: movies, count: count, player_options: player_options}
         else
           res.render 'movies/index', {movies: movies, count: count, player_options: player_options}
 
@@ -530,10 +528,8 @@ app.get '/books/duplicate', (req, res) ->
           html += "<option value=\"#{p._id}\">#{p.name}</option>"
         , "")
         count = 1 #dummy count
-        if req.query.xhr && req.params.page
+        if req.query.xhr
           res.render 'books/list', {layout: false, books: books, count: count, player_options: player_options}
-        else if req.query.xhr
-          res.render 'books/index', {layout: false, books: books, count: count, player_options: player_options}
         else
           res.render 'books/index', {books: books, count: count, player_options: player_options}
 
