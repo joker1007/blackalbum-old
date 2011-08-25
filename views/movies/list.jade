@@ -1,14 +1,19 @@
-- if (req.q)
-  != p.render({url: '/movies/search/%N?q='+req.q, page: page})
-- else
-  != p.render({url: '/movies/%N', page: page})
+#movie-duplicate
+  a.duplicate(href='/movies/duplicate') 重複ファイル一覧
+br
+- if (typeof p != "undefined")
+  - if (req.q)
+    != p.render({url: '/movies/search/%N?q='+req.q, page: page})
+  - else
+    != p.render({url: '/movies/%N', page: page})
 
 != partial('movie', {object: movies})
 
-- if (req.q)
-  != p.render({url: '/movies/search/%N?q='+req.q, page: page})
-- else
-  != p.render({url: '/movies/%N', page: page})
+- if (typeof p != "undefined")
+  - if (req.q)
+    != p.render({url: '/movies/search/%N?q='+req.q, page: page})
+  - else
+    != p.render({url: '/movies/%N', page: page})
 
 - if (count > 10)
   :coffeescript

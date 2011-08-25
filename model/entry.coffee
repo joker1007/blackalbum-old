@@ -7,11 +7,12 @@ Seq = require 'seq'
 {spawn} = require 'child_process'
 {FFmpegThumbnailer} = require '../lib/ffmpegthumbnailer'
 ffmpeg_info = require '../lib/ffmpeg_info'
+zipfile = require 'zipfile'
 
 IMAGEMAGICK = 'convert'
 THUMBNAILS_PATH = "public/images/thumbs"
 
-Movie = new Schema {
+EntrySchema = new Schema {
   name: {type: String, required: true, index: true}
   path: {type: String, required: true, index: {unique: true, dropDups: true}}
   length: {type: Number}
@@ -34,34 +35,34 @@ Movie = new Schema {
   track: {type: String}
 }
 
-Movie.static {
+EntrySchema.static {
   find_or_new: (filename, callback) ->
     M = this
     Seq()
       .seq_((next) ->
         M.findOne {path: filename}, next
       )
-      .seq_((next, movie) =>
-        if !movie
+      .seq_((next, entry) =>
+        if !entry
           fs.stat filename, next
         else
-          callback(null, movie)
+          callback(null, entry)
       )
       .seq_((next, stat) ->
-        movie = new M
-        movie.path ?= filename
-        movie.name ?= path.basename filename
-        movie.title ?= path.basename(filename).replace /\.[a-zA-Z0-9]+$/, ""
-        movie.size ?= stat.size
-        movie.regist_date ?= Date.now()
-        callback(null, movie)
+        entry = new M
+        entry.path ?= filename
+        entry.name ?= path.basename filename
+        entry.title ?= path.basename(filename).replace /\.[a-zA-Z0-9]+$/, ""
+        entry.size ?= stat.size
+        entry.regist_date ?= Date.now()
+        callback(null, entry)
       )
       .catch((err) ->
         callback(err)
       )
 }
 
-Movie.method {
+EntrySchema.method {
   length_str: ->
     if this.length
       hour = parseInt(this.length / 3600)
@@ -81,7 +82,7 @@ Movie.method {
       console.log msg
 
   get_md5: (callback) ->
-    movie = this
+    entry = this
     md5sum = crypto.createHash 'md5'
     rs = fs.createReadStream @path, {start: 0, end: 100 * 1024}
 
@@ -90,15 +91,15 @@ Movie.method {
 
     rs.on 'end', =>
       md5 = md5sum.digest 'hex'
-      movie.md5_hash = md5
-      callback(null, movie)
+      entry.md5_hash = md5
+      callback(null, entry)
 
     rs.on 'error', (exception) ->
-      console.log "[Failed] Get MD5 Error: #{movie.path}"
+      console.log "[Failed] Get MD5 Error: #{entry.path}"
       rs.destroy()
       callback(exception)
 
-  get_info: (callback) ->
+  get_info_movie: (callback) ->
     movie = this
     ffmpeg_info.get_info @path, (err, info) ->
       if !err
@@ -115,7 +116,7 @@ Movie.method {
         callback(err)
 
 
-  create_thumbnail: (count = 6, options..., callback) ->
+  create_thumbnail_movie: (count = 6, options..., callback) ->
     size = options[0] ? "200x150"
     fs.stat path.join(THUMBNAILS_PATH, "#{@title}-#{@md5_hash}.jpg"), (err) =>
       if err
@@ -127,6 +128,89 @@ Movie.method {
         thumbnailer.on 'multi_error', (err) =>
           console.log "[Failed] Create Thumbnail: #{@path}"
           this.clear_thumbnail count, callback
+      else
+        callback(null, this)
+
+  image_files_zip: (count = 6) ->
+    zf = new zipfile.ZipFile @path
+    targets = []
+    image_files = zf.names.map((name, i) ->
+      if name.match /\.(jpe?g|png)/i
+        return {name: name, idx: i}
+    ).filter (files, i) ->
+      !!files
+    if image_files.length > (count - 1)
+      for i in [0..count-1]
+        targets.push image_files[(i * parseInt(image_files.length / count))].idx
+    else
+      last = image_files.length - 1
+      if image_files.length > 0
+        i = 0
+        while targets.length < count
+          targets.push image_files[i].idx
+          i++ if i < last
+    return targets
+
+  create_thumbnail_zip: (count = 6, options..., callback) ->
+    book = this
+    size = options[0] ? "160x120"
+    zf = new zipfile.ZipFile @path
+    targets = this.image_files_zip count
+
+    fs.stat path.join(THUMBNAILS_PATH, "#{@title}-#{@md5_hash}.jpg"), (err) =>
+      if err
+        if targets.length < 1
+          return callback("[Failed] Image File is nothing: #{@path}")
+        Seq()
+          .seq_((next) ->
+            next(null, [1..count])
+          )
+          .flatten()
+          .parEach_((next, i) ->
+            target = targets[i-1]
+            extname = path.extname(zf.names[target])
+            f = zf.readFileSyncIndex target
+            # エラーじゃないけど、ファイルサイズが0になる場合ダミー画像を利用する
+            unless f.length > 0
+              cp = spawn "cp", ["public/images/dummy.jpg", path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")]
+              cp.on 'exit', (code) ->
+                if code == 0 then next() else next(code)
+              cp.stdin.end()
+            else
+              cmd = IMAGEMAGICK
+              args = []
+              if extname.match(/\.jpe?g/)
+                args.push '-define'
+                args.push "jpeg:size=#{size}"
+              args = args.concat ['-resize', size, '-background', 'black', '-compose', 'Copy', '-gravity', 'center', '-extent', size]
+              args.push '-'
+              args.push path.join(THUMBNAILS_PATH, "#{book.title}-#{i}.jpg")
+              im = spawn cmd, args
+              im.on 'exit', (code) ->
+                if code == 0 then next() else next(code)
+
+              if f.length > 200 * 1024
+                start = 0
+                end = 200 * 1024
+                while end <= f.length
+                  buf = f.slice(start, end)
+                  im.stdin.write buf
+                  start = end
+                  end += 200 * 1024
+                buf = f.slice(start)
+                im.stdin.write buf
+              else
+                im.stdin.write f
+              im.stdin.end()
+          )
+          .seq_((next) =>
+            console.log "[Success] Create Thumnails: #{@path}"
+            this.merge_thumbnail count, callback
+          )
+          .catch((err) =>
+            console.log "[Failed] Create Thumnails: #{@path}"
+            this.clear_thumbnail count, callback
+          )
       else
         callback(null, this)
 
@@ -175,4 +259,4 @@ Movie.method {
       )
 }
 
-exports.Movie = Movie
+exports.EntrySchema = EntrySchema

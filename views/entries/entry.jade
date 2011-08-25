@@ -1,0 +1,15 @@
+- each entry in entries
+  div(id="entry-#{entry._id}", class="entry")
+    a.entry-play(href="/entry/#{entry._id}/play")
+      img.thumb(src="/images/thumbs/#{entry.title}-#{entry.md5_hash}.jpg")
+    .info
+      div(id="entry-length-#{entry._id}", class="entry-length entry-info") TIME: #{entry.length_str()}
+      div(id="entry-video_codec-#{entry._id}", class="entry-video_codec entry-info") VCODEC: #{entry.video_codec}
+      div(id="entry-audio_codec-#{entry._id}", class="entry-audio_codec entry-info") ACODEC: #{entry.audio_codec}
+      div(id="entry-resolution-#{entry._id}", class="entry-resolution entry-info") SIZE: #{entry.resolution}
+      br
+      div(id="entry-destroy-#{entry._id}", class="entry-destroy entry-info")
+        a(href="/entry/#{entry._id}") エントリを削除
+    .clearfix
+      div(id="entry-name-#{entry._id}", class="entry-name")
+        a.entry-play(href="/entry/#{entry._id}/play") #{entry.name}

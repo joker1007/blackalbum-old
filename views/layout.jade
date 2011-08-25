@@ -11,14 +11,17 @@ html
     script(src='/javascripts/jquery.lazyload.mini.js')
     script(src='/javascripts/jgrowl/jquery.jgrowl_compressed.js')
     script(src='/socket.io/socket.io.js')
+    script(src='/javascripts/util.js')
     script(src='/javascripts/application.js')
+    script(src='/javascripts/main.js')
+    script(src='/javascripts/players.js')
+    script(src='/javascripts/watches.js')
     script(src='/javascripts/coffee-script.js')
   body
     header
       h1 BlackAlbum
       nav#menu
-        a.menu-item(href='/movies') ムービー
-        a.menu-item(href='/books') ブック
+        a.menu-item(href='/entries') ファイル一覧
         a.menu-item(href='/watches') 監視ディレクトリ設定
         a.updatedb(href='/updatedb') データベースの更新
 

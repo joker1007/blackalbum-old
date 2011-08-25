@@ -1,0 +1,23 @@
+#entry-duplicate
+  a.duplicate(href='/entries/duplicate') 重複ファイル一覧
+br
+- if (typeof p != "undefined")
+  - if (req.q)
+    != p.render({url: '/entries/search/%N?q='+req.q, page: page})
+  - else
+    != p.render({url: '/entries/%N', page: page})
+
+!= partial('entry', {object: entries})
+
+- if (typeof p != "undefined")
+  - if (req.q)
+    != p.render({url: '/entries/search/%N?q='+req.q, page: page})
+  - else
+    != p.render({url: '/entries/%N', page: page})
+
+- if (count > 10)
+  :coffeescript
+    $("img.thumb").lazyload {
+      placeholder : "/images/gray.gif"
+      effect : "fadeIn"
+    }

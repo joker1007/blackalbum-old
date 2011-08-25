@@ -1,14 +1,19 @@
-- if (req.q)
-  != p.render({url: '/books/search/%N?q='+req.q, page: page})
-- else
-  != p.render({url: '/books/%N', page: page})
+#book-duplicate
+  a.duplicate(href='/books/duplicate') 重複ファイル一覧
+br
+- if (typeof p != "undefined")
+  - if (req.q)
+    != p.render({url: '/books/search/%N?q='+req.q, page: page})
+  - else
+    != p.render({url: '/books/%N', page: page})
 
 != partial('book', {object: books})
 
-- if (req.q)
-  != p.render({url: '/books/search/%N?q='+req.q, page: page})
-- else
-  != p.render({url: '/books/%N', page: page})
+- if (typeof p != "undefined")
+  - if (req.q)
+    != p.render({url: '/books/search/%N?q='+req.q, page: page})
+  - else
+    != p.render({url: '/books/%N', page: page})
 
 - if (count > 10)
   :coffeescript
