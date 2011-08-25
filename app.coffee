@@ -18,9 +18,8 @@ Seq = require 'seq'
 ffmpeg_info = require './lib/ffmpeg_info'
 
 {Watch} = require './model/watch'
-{Movie} = require './model/movie'
+{EntrySchema} = require './model/entry'
 {Player} = require './model/player'
-{Book} = require './model/book'
 
 
 ###
@@ -41,10 +40,9 @@ opts.parse(options, true)
 ###
   Model define
 ###
+EntryModel = mongoose.model('Entry', EntrySchema)
 watchModel = mongoose.model('Watch', Watch)
-movieModel = mongoose.model('Movie', Movie)
 playerModel = mongoose.model('Player', Player)
-bookModel = mongoose.model('Book', Book)
 
 
 ## Express
@@ -93,7 +91,11 @@ app.dynamicHelpers {
 
 ## function define
 db_update = (target, em) ->
-  fsearch = new FileSearcher(/\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb|zip)$/i)
+  all_regexp = /\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb|zip)$/i
+  movie_regexp = /\.(mp4|flv|mpe?g|mkv|ogm|wmv|asf|avi|mov|rmvb)$/i
+  zip_regexp = /zip$/i
+
+  fsearch = new FileSearcher(all_regexp)
   Seq()
     .seq_((next) ->
       fsearch.search target, 0, next
@@ -108,10 +110,7 @@ db_update = (target, em) ->
       entry_update = (f) ->
         Seq()
           .seq_((next2) ->
-            if f.match(/zip$/i)
-              bookModel.find_or_new f, next2
-            else
-              movieModel.find_or_new f, next2
+            EntryModel.find_or_new f, next2
           )
           .seq_((next2, entry) ->
             if entry.isNew
@@ -120,13 +119,16 @@ db_update = (target, em) ->
               next2(null, entry)
           )
           .seq_((next2, entry) ->
-            if entry.isNew and typeof entry.get_info == "function"
-              entry.get_info next2
+            if entry.isNew and f.match(movie_regexp)
+              entry.get_info_movie next2
             else
               next2(null, entry)
           )
           .seq_((next2, entry) ->
-            entry.create_thumbnail 6, "200x150", next2
+            if f.match(movie_regexp)
+              entry.create_thumbnail_movie 6, "200x150", next2
+            else if f.match(zip_regexp)
+              entry.create_thumbnail_zip 6, "200x150", next2
           )
           .seq_((next2, entry) ->
             if entry.isNew or entry.isModified()
@@ -175,7 +177,7 @@ order_check = (req) ->
 ## Routes
 
 app.get '/', (req, res) ->
-  res.redirect '/movies'
+  res.redirect '/entries'
 
 app.get '/updatedb', (req, res) ->
   Seq()
@@ -312,26 +314,26 @@ app.post '/player', (req, res) ->
 
 
 ## Movie
-app.get '/movie/:id/play', (req, res) ->
+app.get '/entry/:id/play', (req, res) ->
   Seq()
     .par_((next) ->
       playerModel.findById req.query.pid, next
     )
     .par_((next) ->
-      movieModel.findById req.params.id, next
+      EntryModel.findById req.params.id, next
     )
-    .seq_((next, player, movie) ->
+    .seq_((next, player, entry) ->
       cmd = "open"
       args = ["-a", "#{player.path}"]
-      args.push "#{movie.path}"
-      movie.play(cmd, args)
-      res.send movie
+      args.push "#{entry.path}"
+      entry.play(cmd, args)
+      res.send entry
     )
     .catch((err) ->
       res.send("Cannot Start Play", 422)
     )
 
-app.get '/movies/duplicate', (req, res) ->
+app.get '/entries/duplicate', (req, res) ->
   order_check(req)
   em = new events.EventEmitter
 
@@ -347,7 +349,7 @@ app.get '/movies/duplicate', (req, res) ->
       count += value
     return count
 
-  movieModel.collection.mapReduce mapFunc.toString(), reduceFunc.toString(), {out: {inline: 1}}, (err, values) ->
+  EntryModel.collection.mapReduce mapFunc.toString(), reduceFunc.toString(), {out: {inline: 1}}, (err, values) ->
     if err
       localErrHandler err
     else
@@ -356,13 +358,13 @@ app.get '/movies/duplicate', (req, res) ->
       ).map((elem) ->
         elem._id
       )
-      movieModel.find({"md5_hash" : { "$in" : hashes }}).sort(req.session.order[0], req.session.order[1]).execFind (err, movies) ->
+      EntryModel.find({"md5_hash" : { "$in" : hashes }}).sort(req.session.order[0], req.session.order[1]).execFind (err, entries) ->
         if err
           localErrHandler err
         else
-          em.emit 'find_end', movies
+          em.emit 'find_end', entries
 
-  em.on 'find_end', (movies) ->
+  em.on 'find_end', (entries) ->
     playerModel.find {}, (err, players) ->
       if err
         localErrHandler err
@@ -372,11 +374,11 @@ app.get '/movies/duplicate', (req, res) ->
         , "")
         count = 1 #dummy count
         if req.query.xhr
-          res.render 'movies/list', {layout: false, movies: movies, count: count, player_options: player_options}
+          res.render 'entries/list', {layout: false, entries: entries, count: count, player_options: player_options}
         else
-          res.render 'movies/index', {movies: movies, count: count, player_options: player_options}
+          res.render 'entries/index', {entries: entries, count: count, player_options: player_options}
 
-app.get '/movies/:page?', (req, res) ->
+app.get '/entries/:page?', (req, res) ->
   per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
   page = if req.params.page then parseInt req.params.page else 1
   paginate = require 'paginate-js'
@@ -387,7 +389,7 @@ app.get '/movies/:page?', (req, res) ->
       playerModel.find {}, next
     )
     .par_((next) ->
-      movieModel.count {}, next
+      EntryModel.count {}, next
     )
     .seq_((next, players, count) ->
       player_options = players.reduce((html, p) ->
@@ -397,16 +399,16 @@ app.get '/movies/:page?', (req, res) ->
       next(null, player_options, count, p)
     )
     .seq_((next, player_options, count, p) ->
-      movieModel.find({}).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+      EntryModel.find({}).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, entries) ->
         if req.query.xhr && req.params.page
-          res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
+          res.render 'entries/list', {layout: false, entries: entries, p: p, count: count, page: page, player_options: player_options}
         else if req.query.xhr
-          res.render 'movies/index', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options}
+          res.render 'entries/index', {layout: false, entries: entries, p: p, count: count, page: page, player_options: player_options}
         else
-          res.render 'movies/index', {movies: movies, p: p, count: count, page: page, player_options: player_options}
+          res.render 'entries/index', {entries: entries, p: p, count: count, page: page, player_options: player_options}
     )
 
-search_movies = (req, res, q) ->
+search_entries = (req, res, q) ->
   per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
   page = if req.params.page then parseInt req.params.page else 1
   paginate = require 'paginate-js'
@@ -423,7 +425,7 @@ search_movies = (req, res, q) ->
       playerModel.find {}, next
     )
     .par_((next) ->
-      movieModel.count query, next
+      EntryModel.count query, next
     )
     .seq_((next, players, count) ->
       player_options = players.reduce((html, p) ->
@@ -433,197 +435,41 @@ search_movies = (req, res, q) ->
       next(null, player_options, count, p)
     )
     .seq_((next, player_options, count, p) ->
-      movieModel.find(query).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, movies) ->
+      EntryModel.find(query).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, entries) ->
         if req.query.xhr
-          res.render 'movies/list', {layout: false, movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
+          res.render 'entries/list', {layout: false, entries: entries, p: p, count: count, page: page, player_options: player_options, search: true}
         else
-          res.render 'movies/index', {movies: movies, p: p, count: count, page: page, player_options: player_options, search: true}
+          res.render 'entries/index', {entries: entries, p: p, count: count, page: page, player_options: player_options, search: true}
     )
 
-app.get '/movies/search/:page?', (req, res) ->
+app.get '/entries/search/:page?', (req, res) ->
   q = req.query.q
   req.q = q
-  search_movies req, res, q
+  search_entries req, res, q
 
-app.post '/movies/search/:page?', (req, res) ->
+app.post '/entries/search/:page?', (req, res) ->
   q = req.body.q
   req.q = q
-  search_movies req, res, q
+  search_entries req, res, q
 
-app.del '/movie/:id', (req, res) ->
+app.del '/entry/:id', (req, res) ->
   Seq()
     .seq_((next) ->
-      movieModel.findById req.params.id, next
+      EntryModel.findById req.params.id, next
     )
-    .seq_((next, movie) ->
-      movie.remove next
+    .seq_((next, entry) ->
+      entry.remove next
     )
     .seq_((next) ->
       if req.query.xhr
         res.send req.params.id
       else
-        res.redirect '/movies'
+        res.redirect '/entries'
     )
     .catch((err) ->
       res.send err.message, 422
     )
 
-## Books
-app.get '/book/:id/play', (req, res) ->
-  Seq()
-    .par_((next) ->
-      playerModel.findById req.query.pid, next
-    )
-    .par_((next) ->
-      bookModel.findById req.params.id, next
-    )
-    .seq_((next, player, book) ->
-      cmd = "open"
-      args = ["-a", "#{player.path}"]
-      args.push "#{book.path}"
-      book.play(cmd, args)
-      res.send book
-    )
-    .catch((err) ->
-      res.send("Cannot Start Play", 422)
-    )
-
-app.get '/books/duplicate', (req, res) ->
-  order_check(req)
-  em = new events.EventEmitter
-
-  localErrHandler = (err) ->
-    res.send(err.message, 422)
-
-  mapFunc = ->
-    emit(this.md5_hash, 1)
-
-  reduceFunc = (key, values) ->
-    count = 0
-    values.forEach (value) ->
-      count += value
-    return count
-
-  bookModel.collection.mapReduce mapFunc.toString(), reduceFunc.toString(), {out: {inline: 1}}, (err, values) ->
-    if err
-      localErrHandler err
-    else
-      hashes = values.filter((elem) ->
-        return (elem.value > 1)
-      ).map((elem) ->
-        elem._id
-      )
-      bookModel.find({"md5_hash" : { "$in" : hashes }}).sort(req.session.order[0], req.session.order[1]).execFind (err, books) ->
-        if err
-          localErrHandler err
-        else
-          em.emit 'find_end', books
-
-  em.on 'find_end', (books) ->
-    playerModel.find {}, (err, players) ->
-      if err
-        localErrHandler err
-      else
-        player_options = players.reduce((html, p) ->
-          html += "<option value=\"#{p._id}\">#{p.name}</option>"
-        , "")
-        count = 1 #dummy count
-        if req.query.xhr
-          res.render 'books/list', {layout: false, books: books, count: count, player_options: player_options}
-        else
-          res.render 'books/index', {books: books, count: count, player_options: player_options}
-
-app.get '/books/:page?', (req, res) ->
-  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
-  page = if req.params.page then parseInt req.params.page else 1
-  paginate = require 'paginate-js'
-  order_check(req)
-
-  Seq()
-    .par_((next) ->
-      playerModel.find {}, next
-    )
-    .par_((next) ->
-      bookModel.count {}, next
-    )
-    .seq_((next, players, count) ->
-      player_options = players.reduce((html, p) ->
-        html += "<option value=\"#{p._id}\">#{p.name}</option>"
-      , "")
-      p = paginate {count_elements: count, elements_per_page: per_page}
-      next(null, player_options, count, p)
-    )
-    .seq_((next, player_options, count, p) ->
-      bookModel.find({}).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, books) ->
-        if req.query.xhr && req.params.page
-          res.render 'books/list', {layout: false, books: books, p: p, count: count, page: page, player_options: player_options}
-        else if req.query.xhr
-          res.render 'books/index', {layout: false, books: books, p: p, count: count, page: page, player_options: player_options}
-        else
-          res.render 'books/index', {books: books, p: p, count: count, page: page, player_options: player_options}
-    )
-
-search_books = (req, res, q) ->
-  per_page = if req.body?.per_page then parseInt(req.body.per_page) else 200
-  page = if req.params.page then parseInt req.params.page else 1
-  paginate = require 'paginate-js'
-  order_check(req)
-  if q.substr(0, 1) == '!'
-    query = {tag : q.substr(1)}
-  else if q.substr(0, 1) == '#'
-    query = {path : new RegExp(q.substr(1), "i")}
-  else
-    query = {'$or' : [{name : new RegExp(q, "i")}, {tag : q}]}
-
-  Seq()
-    .par_((next) ->
-      playerModel.find {}, next
-    )
-    .par_((next) ->
-      bookModel.count query, next
-    )
-    .seq_((next, players, count) ->
-      player_options = players.reduce((html, p) ->
-        html += "<option value=\"#{p._id}\">#{p.name}</option>"
-      , "")
-      p = paginate {count_elements: count, elements_per_page: per_page}
-      next(null, player_options, count, p)
-    )
-    .seq_((next, player_options, count, p) ->
-      bookModel.find(query).sort(req.session.order[0], req.session.order[1]).skip((page-1) * per_page).limit(per_page).execFind (err, books) ->
-        if req.query.xhr
-          res.render 'books/list', {layout: false, books: books, p: p, count: count, page: page, player_options: player_options, search: true}
-        else
-          res.render 'books/index', {books: books, p: p, count: count, page: page, player_options: player_options, search: true}
-    )
-
-app.get '/books/search/:page?', (req, res) ->
-  q = req.query.q
-  req.q = q
-  search_books req, res, q
-
-app.post '/books/search/:page?', (req, res) ->
-  q = req.body.q
-  req.q = q
-  search_books req, res, q
-
-app.del '/book/:id', (req, res) ->
-  Seq()
-    .seq_((next) ->
-      bookModel.findById req.params.id, next
-    )
-    .seq_((next, book) ->
-      book.remove next
-    )
-    .seq_((next) ->
-      if req.query.xhr
-        res.send req.params.id
-      else
-        res.redirect '/books'
-    )
-    .catch((err) ->
-      res.send err.message, 422
-    )
 
 port = if opts.get 'port' then parseInt(opts.get('port')) else 4000
 app.listen port

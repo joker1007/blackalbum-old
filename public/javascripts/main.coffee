@@ -1,13 +1,13 @@
 $().ready ->
-  $('a.movie-play').live 'click', (e) ->
+  $('a.entry-play').live 'click', (e) ->
     e.preventDefault()
     selected = $('#player_select option:selected')
     $.ajax {
       type: 'GET'
       url: $(this).attr 'href'
       data: "pid=#{selected.val()}"
-      success: (movie) ->
-        $.jGrowl "Start Play: #{movie.name}"
+      success: (entry) ->
+        $.jGrowl "Start Play: #{entry.name}"
     }
   $('a.book-play').live 'click', (e) ->
     e.preventDefault()
@@ -27,14 +27,14 @@ $().ready ->
       url: $(this).attr 'href'
       data: "xhr=true"
       success: (html) ->
-        movies = $('.movies')
-        movies.fadeOut()
-        movies.queue ->
-          movies.html(html)
-          movies.dequeue()
-        movies.queue ->
-          movies.fadeIn()
-          movies.dequeue()
+        entries = $('.entries')
+        entries.fadeOut()
+        entries.queue ->
+          entries.html(html)
+          entries.dequeue()
+        entries.queue ->
+          entries.fadeIn()
+          entries.dequeue()
     }
 
   $('form.search_form').live 'submit', (e) ->
@@ -45,19 +45,19 @@ $().ready ->
       url: $(this).attr('action') + "?xhr=true&order=#{order}"
       data: $(this).serialize()
       success: (html) ->
-        movies = $('.movies')
-        movies.fadeOut()
-        movies.queue ->
-          movies.html(html)
-          movies.dequeue()
-        movies.queue ->
-          movies.fadeIn()
-          movies.dequeue()
+        entries = $('.entries')
+        entries.fadeOut()
+        entries.queue ->
+          entries.html(html)
+          entries.dequeue()
+        entries.queue ->
+          entries.fadeIn()
+          entries.dequeue()
       error: (msg) ->
         alert msg
     }
 
-  $('div.movie-destroy a').live 'click', (e) ->
+  $('div.entry-destroy a').live 'click', (e) ->
     e.preventDefault()
     confirm = window.confirm "本当に削除しますか？"
     if confirm
@@ -66,7 +66,7 @@ $().ready ->
         url: $(this).attr('href') + "?xhr=true"
         data: "_method=delete"
         success: (id) ->
-          $("div#movie-#{id}").fadeOut()
+          $("div#entry-#{id}").fadeOut()
         error: (msg) ->
           alert msg
       }
